@@ -1,0 +1,149 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  password      String
+  name          String?
+  suburb        String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now())
+  stores        Store[]
+  notifications Notification[]
+  preferences   UserPreference?
+  
+  // NextAuth fields
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model UserPreference {
+  id                    Int      @id @default(autoincrement())
+  userId                Int      @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailNotifications    Boolean  @default(true)
+  pushNotifications     Boolean  @default(true)
+  favoriteCategories    Int[]    @default([])
+  favoriteSuburbs       String[] @default([])
+  notificationFrequency String   @default("daily") // daily, weekly, instant
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // discount, store, system
+  read      Boolean  @default(false)
+  data      Json?    // Additional data like storeId, discountId, etc.
+  createdAt DateTime @default(now())
+}
+
+model Store {
+  id          Int        @id @default(autoincrement())
+  name        String
+  url         String     @unique
+  suburb      String
+  city        String    @default("")
+  country     String    @default("")
+  contact     String?
+  address     String?
+  description String?
+  catalogs    String[]   // Array of image URLs (jpg/png)
+
+  // Relations
+  category    Category   @relation(fields: [categoryId], references: [id])
+  categoryId  Int
+  owner       User       @relation(fields: [ownerId], references: [id])
+  ownerId     Int
+  showcases   Showcase[]
+  discounts   Discount[]
+  background String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @default(now()) @updatedAt
+}
+
+model Discount {
+  id            Int      @id @default(autoincrement())
+  store         Store    @relation(fields: [storeId], references: [id])
+  storeId       Int
+  title         String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime
+  percentage    Float?
+  coupon        String?
+  eCatalog      String[] // Array of image URLs (optional, can be used for discount-specific images)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now())
+
+  @@unique([storeId, title])
+}
+
+model Showcase {
+  id          Int      @id @default(autoincrement())
+  store       Store    @relation(fields: [storeId], references: [id])
+  storeId     Int
+  window      Int
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+}
+
+model Category {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  stores Store[]
+}

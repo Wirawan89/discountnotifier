@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  suburb    String
+  createdAt DateTime @default(now())
+  stores    Store[] // <-- Add this line
+}
+
+model Store {
+  id         Int        @id @default(autoincrement())
+  name       String
+  suburb     String
+  category   Category   @relation(fields: [categoryId], references: [id])
+  categoryId Int
+  url        String
+  ownerId    Int
+  owner      User       @relation(fields: [ownerId], references: [id])
+  background String? // URL or color code
+  createdAt  DateTime   @default(now())
+  discounts  Discount[] // <-- Add this line
+  showcases  Showcase[] // <-- Add this line
+}
+
+model Discount {
+  id          Int      @id @default(autoincrement())
+  store       Store    @relation(fields: [storeId], references: [id])
+  storeId     Int
+  title       String
+  description String
+  startDate   DateTime
+  endDate     DateTime
+  image       String?
+  createdAt   DateTime @default(now())
+}
+
+model Showcase {
+  id        Int      @id @default(autoincrement())
+  store     Store    @relation(fields: [storeId], references: [id])
+  storeId   Int
+  window    Int
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  stores Store[]
+}
