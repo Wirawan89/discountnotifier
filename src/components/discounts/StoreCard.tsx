@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 import type { Discount, Store } from "./types";
+import StoreLogo from "./StoreLogo";
 
 type StoreCardProps = {
   store: Store;
@@ -43,17 +44,21 @@ export default function StoreCard({
       <button
         type="button"
         onClick={() => onToggleFavorite(store.id)}
-        className={`absolute top-3 right-3 p-2 rounded-full transition-all duration-200 ${
+        aria-label={isFavorite ? `Remove ${store.name} from favorites` : `Add ${store.name} to favorites`}
+        className={`absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 ${
           isFavorite
             ? "bg-red-500 text-white hover:bg-red-600"
             : "bg-gray-200 text-gray-600 hover:bg-red-500 hover:text-white"
         }`}
       >
-        <span className="text-lg">{isFavorite ? "❤️" : "🤍"}</span>
+        <span className="text-sm">{isFavorite ? "❤️" : "🤍"}</span>
       </button>
 
       <div className="flex flex-col h-full">
-        <h3 className="font-bold text-lg text-gray-800 mb-2 pr-12">{store.name}</h3>
+        <div className="mb-3 flex items-center gap-3 pr-9">
+          <StoreLogo name={store.name} url={store.url} />
+          <h3 className="font-bold text-base leading-snug text-gray-800">{store.name}</h3>
+        </div>
         <p className="text-sm text-gray-600 mb-2">📍 {store.suburb}</p>
 
         <div className="flex gap-2 mb-3">

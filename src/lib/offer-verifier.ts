@@ -7,6 +7,7 @@ export type OfferVerificationResult = {
 
 export type OfferVerifierOptions = {
   country?: string;
+  profile?: "retail" | "retailShop" | "dining";
 };
 
 type UrlToCheck = {
@@ -26,12 +27,22 @@ const OFFER_KEYWORDS = [
   "deal",
   "deals",
   "hot deal",
+  "happy hour",
+  "happy hours",
   "eofy",
   "eofy deal",
   "eofy deals",
   "end of financial year",
   "special",
   "specials",
+  "special price",
+  "special prices",
+  "special offer",
+  "special offers",
+  "special deal",
+  "special deals",
+  "limited time offer",
+  "limited time offers",
   "offer",
   "offers",
   "promo",
@@ -44,10 +55,57 @@ const OFFER_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: "save $", pattern: /\bsave\s*\$+\s*\d+/i },
   { label: "$ off", pattern: /\$\s*\d+(?:\.\d{1,2})?\s*off\b/i },
   { label: "% off", pattern: /\b\d+(?:\.\d+)?%\s*off\b/i },
+  { label: "half price", pattern: /\b(?:1\/2|half)\s*price\b/i },
+  { label: "off rrp", pattern: /\boff\s+rrp\b/i },
   { label: "money saving", pattern: /\bsave\s+\d+(?:\.\d+)?\s*(?:dollars|aud)\b/i },
+  { label: "markdown price", pattern: /\boriginally\s+(?:aud\s*)?\$\s*\d+(?:\.\d{1,2})?/i },
 ];
 
 const STRONG_OFFER_KEYWORDS = new Set([
+  "sale",
+  "on sale",
+  "clearance",
+  "clerance",
+  "clearence",
+  "deal",
+  "deals",
+  "hot deal",
+  "happy hour",
+  "happy hours",
+  "eofy",
+  "eofy deal",
+  "eofy deals",
+  "end of financial year",
+  "special offer",
+  "special offers",
+  "special price",
+  "special prices",
+  "special deal",
+  "special deals",
+  "limited time offer",
+  "limited time offers",
+  "promo",
+  "promotion",
+  "outlet",
+  "save $",
+  "$ off",
+  "% off",
+  "half price",
+  "off rrp",
+  "money saving",
+  "markdown price",
+]);
+
+const DINING_STRONG_OFFER_KEYWORDS = new Set([
+  "happy hour",
+  "happy hours",
+  "special offer",
+  "special offers",
+  "special deal",
+  "special deals",
+]);
+
+const RETAIL_SHOP_STRONG_OFFER_KEYWORDS = new Set([
   "sale",
   "on sale",
   "clearance",
@@ -62,23 +120,32 @@ const STRONG_OFFER_KEYWORDS = new Set([
   "end of financial year",
   "promo",
   "promotion",
+  "special price",
+  "special prices",
+  "limited time offer",
+  "limited time offers",
   "outlet",
   "save $",
   "$ off",
   "% off",
+  "half price",
+  "off rrp",
   "money saving",
+  "markdown price",
 ]);
 
 const NON_OFFER_PAGE_PATTERN =
-  /(dealer|distributor|find[-\s]?store|store[-\s]?locator|service[-\s]?center|support|warranty|manual|faq|ordering|news|press|article)/i;
+  /(dealer|distributor|find[-\s]?store|store[-\s]?locator|service[-\s]?center|support|warranty|manual|faq|help[-\s]?centre|help[-\s]?center|ordering|news|press|article|terms|conditions|privacy|policy)/i;
 
 const OFFER_LINK_PATTERN =
-  /(discount|sale|clearance|clerance|clearence|deal|hot[-\s]?deal|eofy|end[-\s]?of[-\s]?financial[-\s]?year|special|offer|promo|promotion|outlet|markdown|reduced|save|\$\s*\d+\s*off|\d+%\s*off)/i;
+  /(discount|sale|clearance|clerance|clearence|deal|hot[-\s]?deal|happy[-\s]?hour|eofy|end[-\s]?of[-\s]?financial[-\s]?year|special|special[-\s]?price|limited[-\s]?time[-\s]?offer|offer|promo|promotion|outlet|catalogue|catalog|what'?s[-\s]?on|markdown|reduced|save|\$\s*\d+\s*off|\d+%\s*off|(?:1\/2|half)\s*price|off\s+rrp)/i;
 
 const COMMON_OFFER_PATHS = [
   "/sale",
   "/sales",
   "/deals",
+  "/happy-hour",
+  "/happy-hours",
   "/eofy",
   "/eofy-deals",
   "/clearance",
@@ -87,7 +154,11 @@ const COMMON_OFFER_PATHS = [
   "/clearance?p=2",
   "/specials",
   "/offers",
+  "/special-offers",
+  "/special-deals",
   "/promotions",
+  "/whats-on",
+  "/whatson",
   "/outlet",
   "/hot-deals",
   "/red-hot-deals",
@@ -109,6 +180,16 @@ const COMMON_OFFER_PATHS = [
   "/pages/deals",
   "/pages/eofy-deals",
   "/shop/sale",
+];
+
+const DINING_OFFER_PATHS = [
+  "/happy-hour",
+  "/happy-hours",
+  "/special-offers",
+  "/special-deals",
+  "/offers",
+  "/whats-on",
+  "/whatson",
 ];
 
 const MAX_DISCOVERED_LINKS = 8;
@@ -136,13 +217,22 @@ function stripHtml(html: string): string {
 }
 
 function isBlockedOrUnavailablePage(text: string): boolean {
-  return [
+  const normalizedText = text.toLowerCase();
+  const hasBlockedText = [
     "pardon our interruption",
     "access denied",
     "please enable javascript",
     "javascript is not available",
     "site is currently unavailable",
-  ].some((blockedText) => text.toLowerCase().includes(blockedText));
+  ].some((blockedText) => normalizedText.includes(blockedText));
+
+  if (!hasBlockedText) {
+    return false;
+  }
+
+  const hasUsableOfferText = OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(text));
+
+  return !hasUsableOfferText;
 }
 
 function findKeywords(text: string): string[] {
@@ -162,6 +252,54 @@ function findKeywords(text: string): string[] {
 
 function findKeywordsInUrl(url: string): string[] {
   return findKeywords(url.replace(/[-_/?.=&]+/g, " "));
+}
+
+function hasExplicitSavingsInUrl(url: string): boolean {
+  const urlText = url.replace(/[-_/?.=&]+/g, " ");
+
+  return OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(urlText));
+}
+
+function getSiteKey(url: string): string | null {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    const labels = host.split(".").filter(Boolean);
+
+    if (labels.length <= 2) {
+      return host;
+    }
+
+    const secondLevelCountryDomains = new Set(["com", "net", "org", "co"]);
+    const lastLabel = labels[labels.length - 1];
+    const secondLastLabel = labels[labels.length - 2];
+    const labelCount =
+      (lastLabel === "au" || lastLabel === "nz") && secondLevelCountryDomains.has(secondLastLabel) ? 3 : 2;
+
+    return labels.slice(-labelCount).join(".");
+  } catch {
+    return null;
+  }
+}
+
+function isSameSiteUrl(candidateUrl: string, pageUrl: string): boolean {
+  const candidateSite = getSiteKey(candidateUrl);
+  const pageSite = getSiteKey(pageUrl);
+
+  return Boolean(candidateSite && pageSite && candidateSite === pageSite);
+}
+
+function hasTrustedOfferIntentInUrl(url: string): boolean {
+  return /(sale|clearance|clerance|clearence|deal|hot[-\s]?deal|eofy|special|special[-\s]?price|limited[-\s]?time[-\s]?offer|offer|promo|promotion|outlet|markdown|reduced)/i.test(
+    url
+  );
+}
+
+function hasRetailShopCatalogueEvidence(url: string, pageText: string): boolean {
+  return (
+    /\b(catalogue|catalog)\b/i.test(url) &&
+    /\b(offer|offers)\b/i.test(pageText) &&
+    /\bsave\b/i.test(pageText)
+  );
 }
 
 function normalizeCountry(country?: string): string | undefined {
@@ -235,8 +373,33 @@ function isCountryRelevant(url: string, country?: string, pageText = ""): boolea
   }
 }
 
-function hasStrongOfferEvidence(matchedKeywords: string[], url: string, pageText = ""): boolean {
-  const hasStrongKeyword = matchedKeywords.some((keyword) => STRONG_OFFER_KEYWORDS.has(keyword));
+function hasStrongOfferEvidence(
+  matchedKeywords: string[],
+  url: string,
+  pageText = "",
+  profile: OfferVerifierOptions["profile"] = "retail"
+): boolean {
+  if (profile === "dining") {
+    return matchedKeywords.some((keyword) => DINING_STRONG_OFFER_KEYWORDS.has(keyword));
+  }
+
+  if (profile === "retailShop") {
+    if (NON_OFFER_PAGE_PATTERN.test(url)) {
+      return false;
+    }
+
+    const hasExplicitSavings = OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(pageText));
+    const hasRetailKeyword = matchedKeywords.some((keyword) => RETAIL_SHOP_STRONG_OFFER_KEYWORDS.has(keyword));
+    const hasCatalogueOfferEvidence = hasRetailShopCatalogueEvidence(url, pageText);
+
+    return (hasExplicitSavings && hasRetailKeyword) || hasCatalogueOfferEvidence;
+  }
+
+  const hasSpecialsPath =
+    matchedKeywords.some((keyword) => keyword === "special" || keyword === "specials") &&
+    /(\/|-)special(s)?(\/|$)|catalogue|catalog|weekly-specials|on-special/i.test(url);
+  const hasStrongKeyword =
+    hasSpecialsPath || matchedKeywords.some((keyword) => STRONG_OFFER_KEYWORDS.has(keyword));
 
   if (!hasStrongKeyword) {
     return false;
@@ -244,7 +407,10 @@ function hasStrongOfferEvidence(matchedKeywords: string[], url: string, pageText
 
   const pageLooksInformational = NON_OFFER_PAGE_PATTERN.test(url) || NON_OFFER_PAGE_PATTERN.test(pageText);
   const hasExplicitSavings = OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(pageText));
-  const hasSalePath = /(\/|-)sale(s)?(\/|$)|clearance|eofy|deal|outlet|promo|promotion/i.test(url);
+  const hasSalePath =
+    /(\/|-)sale(s)?(\/|$)|clearance|eofy|deal|outlet|promo|promotion|(\/|-)special(s)?(\/|$)|catalogue|catalog|weekly-specials|on-special/i.test(
+      url
+    );
 
   if (pageLooksInformational && !hasExplicitSavings && !hasSalePath) {
     return false;
@@ -269,7 +435,7 @@ function extractOfferLinks(html: string, pageUrl: string): string[] {
 
     try {
       const url = new URL(href, pageUrl);
-      if (url.protocol === "http:" || url.protocol === "https:") {
+      if ((url.protocol === "http:" || url.protocol === "https:") && isSameSiteUrl(url.toString(), pageUrl)) {
         links.add(url.toString());
       }
     } catch {
@@ -318,16 +484,23 @@ async function fetchPage(url: string): Promise<{ text: string; html: string } | 
   }
 }
 
-function addCommonOfferUrls(baseUrl: string, urls: Set<string>) {
+function addCommonOfferUrls(
+  baseUrl: string,
+  urls: Set<string>,
+  profile: OfferVerifierOptions["profile"] = "retail"
+) {
   try {
     const base = new URL(baseUrl);
-    COMMON_OFFER_PATHS.forEach((path) => {
+    const commonPaths =
+      profile === "dining" ? DINING_OFFER_PATHS : profile === "retailShop" ? [] : COMMON_OFFER_PATHS;
+
+    commonPaths.forEach((path) => {
       urls.add(new URL(path, base.origin).toString());
     });
 
     const firstPathSegment = base.pathname.split("/").filter(Boolean)[0];
     if (firstPathSegment && /^[a-z]{2}(-[a-z]{2})?$/i.test(firstPathSegment)) {
-      COMMON_OFFER_PATHS.forEach((path) => {
+      commonPaths.forEach((path) => {
         urls.add(new URL(`/${firstPathSegment}${path}`, base.origin).toString());
       });
     }
@@ -371,11 +544,18 @@ export class OfferVerifier {
     catalogUrls
       .map(normalizeUrl)
       .filter((url): url is string => Boolean(url))
+      .filter(
+        (url) =>
+          options.profile !== "retailShop" ||
+          hasExplicitSavingsInUrl(url) ||
+          hasTrustedOfferIntentInUrl(url) ||
+          /\b(catalogue|catalog)\b/i.test(url)
+      )
       .forEach((url) => queueUrl(url, 2, "catalog", queuedUrls, urlsToCheck));
 
     if (normalizedStoreUrl) {
       const commonOfferUrls = new Set<string>();
-      addCommonOfferUrls(normalizedStoreUrl, commonOfferUrls);
+      addCommonOfferUrls(normalizedStoreUrl, commonOfferUrls, options.profile);
       commonOfferUrls.forEach((url) => queueUrl(url, 2, "common", queuedUrls, urlsToCheck));
     }
 
@@ -386,13 +566,20 @@ export class OfferVerifier {
 
       if (!page) {
         const matchedKeywords = findKeywordsInUrl(current.url);
-        const canTrustOfferUrl = current.source === "catalog" || current.source === "discovered";
+        const canTrustOfferUrl =
+          current.source === "catalog" ||
+          (options.profile !== "retailShop" && current.source === "discovered");
+        const hasTrustedRetailShopCatalogUrl =
+          options.profile === "retailShop" &&
+          current.source === "catalog" &&
+          hasTrustedOfferIntentInUrl(current.url);
 
         if (
           canTrustOfferUrl &&
           matchedKeywords.length > 0 &&
           isCountryRelevant(current.url, options.country) &&
-          hasStrongOfferEvidence(matchedKeywords, current.url)
+          (hasTrustedRetailShopCatalogUrl ||
+            hasStrongOfferEvidence(matchedKeywords, current.url, "", options.profile))
         ) {
           return {
             hasOffer: true,
@@ -409,7 +596,7 @@ export class OfferVerifier {
       if (
         matchedKeywords.length > 0 &&
         isCountryRelevant(current.url, options.country, page.text) &&
-        hasStrongOfferEvidence(matchedKeywords, current.url, page.text)
+        hasStrongOfferEvidence(matchedKeywords, current.url, page.text, options.profile)
       ) {
         return {
           hasOffer: true,

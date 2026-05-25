@@ -39,6 +39,40 @@ export interface FetchResult {
   };
 }
 
+function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'dining' {
+  if (categoryName === 'Dining & Beverages' || categoryName === 'Caffe & Brunch') {
+    return 'dining';
+  }
+
+  if (
+    categoryName === 'Sport Gears' ||
+    categoryName === 'Cosmetic & Perfumes' ||
+    categoryName === 'Clothing & Fashions' ||
+    categoryName === 'Electronic & Gadgets' ||
+    categoryName === 'Baby & Kids' ||
+    categoryName === 'Luxury & Designer' ||
+    categoryName === 'HIFI Audio & Speakers' ||
+    categoryName === 'Entertainment & Events' ||
+    categoryName === 'Gifts & Flowers' ||
+    categoryName === 'Travel & Accommodation' ||
+    categoryName === 'Vitamins & Supplements' ||
+    categoryName === 'Office & Stationery' ||
+    categoryName === 'Games' ||
+    categoryName === 'Trending Toys' ||
+    categoryName === 'Tools & DIY' ||
+    categoryName === 'Books & Magazines' ||
+    categoryName === 'Cars Accessories' ||
+    categoryName === 'Business Attire' ||
+    categoryName === 'Leather Jackets & Bags' ||
+    categoryName === 'Pets Supplies' ||
+    categoryName === 'Traveling Accessories'
+  ) {
+    return 'retailShop';
+  }
+
+  return 'retail';
+}
+
 // Data validation utilities
 export class DataValidator {
   static isValidUrl(url: string): boolean {
@@ -275,7 +309,8 @@ export class DiscountFetcher {
   private static createGenericVerifiedDiscount(
     storeName: string,
     matchedUrl: string,
-    matchedKeywords: string[]
+    matchedKeywords: string[],
+    categoryName?: string
   ): DiscountData {
     const startDate = new Date();
     const endDate = new Date(startDate);
@@ -283,9 +318,18 @@ export class DiscountFetcher {
 
     const matchedText = matchedKeywords.length > 0 ? matchedKeywords.join(', ') : 'offer';
     const hasEofyOffer = matchedKeywords.some((keyword) => /eofy|end of financial year/i.test(keyword));
+    const hasHappyHour = matchedKeywords.some((keyword) => /happy hour/i.test(keyword));
+    const profile = getVerifierProfile(categoryName);
 
     return {
-      title: hasEofyOffer ? `${storeName} EOFY Deals` : `${storeName} current sale and offers`,
+      title:
+        profile === 'dining'
+          ? hasHappyHour
+            ? `${storeName} Happy Hour and Special Offers`
+            : `${storeName} Special Offers`
+          : hasEofyOffer
+            ? `${storeName} EOFY Deals`
+            : `${storeName} current sale and offers`,
       description: `Offer wording found on the store website (${matchedText}). Check the store website for live availability.`,
       startDate: startDate.toISOString().slice(0, 10),
       endDate: endDate.toISOString().slice(0, 10),
@@ -293,10 +337,11 @@ export class DiscountFetcher {
     };
   }
 
-  private static async keepOnlyVerifiedOffers(store: StoreData): Promise<StoreData> {
+  private static async keepOnlyVerifiedOffers(store: StoreData, categoryName?: string): Promise<StoreData> {
     if (store.discounts.length === 0) {
       const result = await OfferVerifier.verifyStoreOfferPages(store.url, store.catalogs, {
         country: store.country,
+        profile: getVerifierProfile(categoryName),
       });
 
       if (!result.hasOffer || !result.matchedUrl) {
@@ -310,13 +355,19 @@ export class DiscountFetcher {
       return {
         ...store,
         discounts: [
-          this.createGenericVerifiedDiscount(store.name, result.matchedUrl, result.matchedKeywords),
+          this.createGenericVerifiedDiscount(
+            store.name,
+            result.matchedUrl,
+            result.matchedKeywords,
+            categoryName
+          ),
         ],
       };
     }
 
     const storeResult = await OfferVerifier.verifyStoreOfferPages(store.url, store.catalogs, {
       country: store.country,
+      profile: getVerifierProfile(categoryName),
     });
     if (storeResult.hasOffer) {
       console.log(
@@ -331,7 +382,7 @@ export class DiscountFetcher {
       const discountResult = await OfferVerifier.verifyStoreOfferPages(
         store.url,
         discount.eCatalog || [],
-        { country: store.country }
+        { country: store.country, profile: getVerifierProfile(categoryName) }
       );
 
       if (discountResult.hasOffer) {
@@ -341,7 +392,7 @@ export class DiscountFetcher {
         );
       } else {
         console.log(
-          `No discount, sale, clearance, or deal wording found for ${store.name} discount "${discount.title}". Checked: ${discountResult.checkedUrls.join(', ')}`
+          `No matching offer wording found for ${store.name} discount "${discount.title}". Checked: ${discountResult.checkedUrls.join(', ')}`
         );
       }
     }
@@ -387,7 +438,7 @@ export class DiscountFetcher {
         for (const storeData of parsedData) {
           const validatedStore = DataValidator.validateStore(storeData);
           if (validatedStore) {
-            stores.push(await this.keepOnlyVerifiedOffers(validatedStore));
+            stores.push(await this.keepOnlyVerifiedOffers(validatedStore, categoryName));
           } else {
             errors.push(`Invalid store data: ${JSON.stringify(storeData).substring(0, 100)}...`);
           }
@@ -396,7 +447,7 @@ export class DiscountFetcher {
         // Handle single store response
         const validatedStore = DataValidator.validateStore(parsedData);
         if (validatedStore) {
-          stores.push(await this.keepOnlyVerifiedOffers(validatedStore));
+          stores.push(await this.keepOnlyVerifiedOffers(validatedStore, categoryName));
         } else {
           errors.push('Invalid single store data');
         }

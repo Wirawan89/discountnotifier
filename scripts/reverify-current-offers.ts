@@ -6,14 +6,61 @@ const categoryName = process.argv.find((arg) => arg.startsWith("--category="))?.
 const storeName = process.argv.find((arg) => arg.startsWith("--store="))?.split("=")[1];
 const createMissingOffers = process.argv.includes("--create-missing");
 
-function createGenericOffer(storeName: string, matchedUrl: string, matchedKeywords: string[]) {
+function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "dining" {
+  if (categoryName === "Dining & Beverages" || categoryName === "Caffe & Brunch") {
+    return "dining";
+  }
+
+  if (
+    categoryName === "Sport Gears" ||
+    categoryName === "Cosmetic & Perfumes" ||
+    categoryName === "Clothing & Fashions" ||
+    categoryName === "Electronic & Gadgets" ||
+    categoryName === "Baby & Kids" ||
+    categoryName === "Luxury & Designer" ||
+    categoryName === "HIFI Audio & Speakers" ||
+    categoryName === "Entertainment & Events" ||
+    categoryName === "Gifts & Flowers" ||
+    categoryName === "Travel & Accommodation" ||
+    categoryName === "Vitamins & Supplements" ||
+    categoryName === "Office & Stationery" ||
+    categoryName === "Games" ||
+    categoryName === "Trending Toys" ||
+    categoryName === "Tools & DIY" ||
+    categoryName === "Books & Magazines" ||
+    categoryName === "Cars Accessories" ||
+    categoryName === "Business Attire" ||
+    categoryName === "Leather Jackets & Bags" ||
+    categoryName === "Pets Supplies" ||
+    categoryName === "Traveling Accessories"
+  ) {
+    return "retailShop";
+  }
+
+  return "retail";
+}
+
+function createGenericOffer(
+  storeName: string,
+  matchedUrl: string,
+  matchedKeywords: string[],
+  profile: "retail" | "retailShop" | "dining"
+) {
   const startDate = new Date();
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + 7);
   const hasEofyOffer = matchedKeywords.some((keyword) => /eofy|end of financial year/i.test(keyword));
+  const hasHappyHour = matchedKeywords.some((keyword) => /happy hour/i.test(keyword));
 
   return {
-    title: hasEofyOffer ? `${storeName} EOFY Deals` : `${storeName} current sale and offers`,
+    title:
+      profile === "dining"
+        ? hasHappyHour
+          ? `${storeName} Happy Hour and Special Offers`
+          : `${storeName} Special Offers`
+        : hasEofyOffer
+          ? `${storeName} EOFY Deals`
+          : `${storeName} current sale and offers`,
     description: `Offer wording found on the store website (${matchedKeywords.join(", ")}). Check the store website for live availability.`,
     startDate,
     endDate,
@@ -81,10 +128,16 @@ async function main() {
       checked++;
       const result = await OfferVerifier.verifyStoreOfferPages(store.url, store.catalogs, {
         country: store.country,
+        profile: getVerifierProfile(store.category.name),
       });
 
       if (result.hasOffer && result.matchedUrl) {
-        const offer = createGenericOffer(store.name, result.matchedUrl, result.matchedKeywords);
+        const offer = createGenericOffer(
+          store.name,
+          result.matchedUrl,
+          result.matchedKeywords,
+          getVerifierProfile(store.category.name)
+        );
         await prisma.discount.upsert({
           where: {
             storeId_title: {
@@ -119,6 +172,7 @@ async function main() {
         ...discount.eCatalog,
       ], {
         country: store.country,
+        profile: getVerifierProfile(store.category.name),
       });
 
       if (result.hasOffer) {

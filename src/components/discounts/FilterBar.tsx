@@ -100,13 +100,13 @@ export default function FilterBar({
         <button
           type="button"
           onClick={onToggleFavoritesOnly}
-          className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
+          className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all duration-200 ${
             showFavoritesOnly
               ? "bg-red-600 text-white hover:bg-red-700"
               : "bg-gray-200 text-gray-700 hover:bg-gray-300"
           }`}
         >
-          <span className="text-lg">❤️</span>
+          <span className="text-sm">❤️</span>
           {showFavoritesOnly ? "Show All" : "Favorites"}
         </button>
 
