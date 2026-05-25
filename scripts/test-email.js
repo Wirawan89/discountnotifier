@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 const createTransporter = () => {
   // Gmail configuration
   if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
@@ -15,7 +15,7 @@ const createTransporter = () => {
   
   // SendGrid configuration
   if (process.env.SENDGRID_API_KEY) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: 'smtp.sendgrid.net',
       port: 587,
       secure: false,
@@ -28,7 +28,7 @@ const createTransporter = () => {
   
   // Resend configuration
   if (process.env.RESEND_API_KEY) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: 'smtp.resend.com',
       port: 587,
       secure: false,
@@ -40,7 +40,7 @@ const createTransporter = () => {
   }
   
   // Default to Gmail
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.EMAIL_USER || 'your-email@gmail.com',

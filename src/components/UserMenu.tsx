@@ -1,12 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 
 export default function UserMenu() {
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (session?.user?.email) {
+        try {
+          const response = await fetch('/api/admin/check');
+          if (response.ok) {
+            setIsAdmin(true);
+          }
+        } catch (error) {
+          console.error('Error checking admin status:', error);
+        }
+      }
+    };
+
+    checkAdminStatus();
+  }, [session]);
 
   if (!session?.user) {
     return (
@@ -80,6 +98,15 @@ export default function UserMenu() {
             >
               Preferences
             </Link>
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t border-gray-100"
+                onClick={() => setIsOpen(false)}
+              >
+                Admin Dashboard
+              </Link>
+            )}
             <button
               onClick={() => {
                 signOut({ callbackUrl: "/" });

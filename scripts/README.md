@@ -4,17 +4,20 @@ This directory contains scripts for maintaining the DiscountNotifier database.
 
 ## Available Scripts
 
-### 1. Monthly Cleanup (`monthly-cleanup.js`)
-**Purpose**: Automatically removes expired discounts and orphaned stores on the first day of each month.
+### 1. Expired Offer Cleanup (`monthly-cleanup.js`)
+**Purpose**: Automatically removes expired discounts by checking each discount's `endDate`.
 
 **What it does**:
-- Removes all discounts that expired in the previous month
-- Removes stores that have no active discounts
+- Removes discounts where `endDate` is before the current time
+- Keeps stores by default
+- Optionally removes stores that have no discounts when run with `--prune-empty-stores`
 - Provides a summary of remaining data
 
 **Usage**:
 ```bash
 npm run cleanup:monthly
+npm run cleanup:monthly:dry-run
+npm run cleanup:monthly -- --prune-empty-stores
 ```
 
 ### 2. Expired Discounts Cleanup (`cleanup-expired.js`)
@@ -42,14 +45,18 @@ npm run cleanup:testing
 ```
 
 ### 5. Cron Setup (`setup-cron.js`)
-**Purpose**: Helps set up automatic monthly cleanup via cron jobs.
+**Purpose**: Helps set up automatic expired-offer cleanup via cron jobs.
 
 **Usage**:
 ```bash
 npm run setup:cron
 ```
 
-## Setting Up Automatic Monthly Cleanup
+## Automatic Current Offers Cleanup
+
+The Current Offers list also cleans itself when the app calls `/api/discounts`. Expired discounts are deleted before offers are returned, so users should not see expired offers even if the scheduled cleanup has not run yet.
+
+## Setting Up Automatic Scheduled Cleanup
 
 ### Option 1: Using the Setup Script
 1. Run the setup script:
@@ -65,15 +72,15 @@ npm run setup:cron
    ```
 2. Add this line (replace `/path/to/project` with your actual project path):
    ```
-   0 2 1 * * cd /path/to/project && npm run cleanup:monthly >> logs/monthly-cleanup.log 2>&1
+   0 2 * * * cd /path/to/project && npm run cleanup:monthly >> logs/monthly-cleanup.log 2>&1
    ```
 3. Save and exit
 
 ### Cron Schedule Explanation
-- `0 2 1 * *` = Run at 2:00 AM on the 1st day of every month
+- `0 2 * * *` = Run every day at 2:00 AM
 - The script will:
-  - Remove discounts that expired in the previous month
-  - Remove stores with no active discounts
+  - Remove discounts where `endDate` has already passed
+  - Keep stores unless `--prune-empty-stores` is passed
   - Log results to `logs/monthly-cleanup.log`
 
 ## Logs
@@ -84,7 +91,10 @@ All cleanup operations are logged to the `logs/` directory:
 ## Testing
 Before setting up automatic cleanup, test the scripts manually:
 ```bash
-# Test monthly cleanup
+# Preview expired offer cleanup
+npm run cleanup:monthly:dry-run
+
+# Run expired offer cleanup
 npm run cleanup:monthly
 
 # Test expired cleanup
@@ -96,6 +106,7 @@ npm run cleanup:full
 
 ## Safety Features
 - All scripts provide detailed logging
-- Monthly cleanup only removes discounts from the previous month
+- Expired offer cleanup supports `--dry-run`
+- Empty stores are kept unless `--prune-empty-stores` is passed
 - Scripts show summary statistics after cleanup
 - Error handling prevents partial cleanups 

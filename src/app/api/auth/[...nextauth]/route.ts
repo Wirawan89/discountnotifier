@@ -73,7 +73,7 @@ if (process.env.APPLE_ID && process.env.APPLE_SECRET) {
   );
 }
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers,
   session: {
@@ -161,8 +161,8 @@ const handler = NextAuth({
   pages: {
     signIn: "/auth/signin",
   }
-});
+};
 
-export const authOptions = handler;
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

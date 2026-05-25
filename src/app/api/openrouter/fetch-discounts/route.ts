@@ -1,25 +1,12 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { sendDiscountNotifications } from '../../../../lib/email';
+import { DiscountFetcher } from '../../../../lib/discount-fetcher';
 
 const prisma = new PrismaClient();
 
-// Helper function to parse and validate dates
-function parseDate(dateString: any): Date | null {
-  if (!dateString || dateString === 'null' || dateString === 'unknown' || dateString === '') {
-    return null;
-  }
-  
-  try {
-    const date = new Date(dateString);
-    return isNaN(date.getTime()) ? null : date;
-  } catch {
-    return null;
-  }
-}
-
 // Helper to call OpenRouter API with Perplexity Sonar model
-async function callOpenRouterForCategory(categoryName: string) {
+async function callOpenRouterForCategory(categoryName: string): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not set in .env');
 
@@ -41,7 +28,9 @@ Category rules:
 - "Travel & Accommodation": travel agencies, hotels
 - "Entertainment & Events": entertainment venues, event services
 
-Visit main homepage URLs. Look for sales in headers, navigation, content areas, footers. Skip popups/modals.
+Visit main homepage URLs and at least one relevant second page such as sale, deals, clearance, hot deals, offers, promotions, or outlet. Look for sales in headers, navigation, content areas, footers. Skip popups/modals.
+Only include a discount when the checked page visibly uses wording such as Discount, Sale, Clearance, Deal, Hot Deal, Offer, Promo, Outlet, or Save.
+If no matching wording is visible for a store, include the store with an empty discounts array.
 
 Return JSON array with objects containing:
 - Store name
@@ -64,109 +53,40 @@ Return JSON array with objects containing:
 
 Only include stores that truly match the category. Use YYYY-MM-DD date format.`;
 
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'DiscountNotifier'
-      },
-      body: JSON.stringify({
-        model: 'perplexity/sonar',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 3000
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    const text = data.choices[0]?.message?.content || '';
-    
-    console.log('OpenRouter response text:', text);
-    
-    // Try to parse JSON from the response
-    let stores;
-    let cleanedText = text;
-    // Remove markdown code block if present
-    if (cleanedText.startsWith('```json')) {
-      cleanedText = cleanedText.slice(7).trim();
-      if (cleanedText.endsWith('```')) {
-        cleanedText = cleanedText.slice(0, -3).trim();
-      }
-    } else if (cleanedText.startsWith('```')) {
-      cleanedText = cleanedText.slice(3).trim();
-      if (cleanedText.endsWith('```')) {
-        cleanedText = cleanedText.slice(0, -3).trim();
-      }
-    }
-    
-    try {
-      stores = JSON.parse(cleanedText);
-      console.log('Sonar JSON parse successful');
-    } catch (parseError) {
-      console.log('Sonar JSON parse failed, trying to extract complete JSON');
-      console.log('Raw response length:', text.length);
-      
-      // Try to find the complete JSON structure
-      const jsonStart = cleanedText.indexOf('[');
-      if (jsonStart !== -1) {
-        // Find the matching closing bracket
-        let bracketCount = 0;
-        let jsonEnd = -1;
-        
-        for (let i = jsonStart; i < cleanedText.length; i++) {
-          if (cleanedText[i] === '[') bracketCount++;
-          if (cleanedText[i] === ']') bracketCount--;
-          if (bracketCount === 0) {
-            jsonEnd = i;
-            break;
-          }
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'http://localhost:3000',
+      'X-Title': 'DiscountNotifier'
+    },
+    body: JSON.stringify({
+      model: 'perplexity/sonar',
+      messages: [
+        {
+          role: 'user',
+          content: prompt
         }
-        
-        if (jsonEnd !== -1) {
-          const extractedJson = cleanedText.substring(jsonStart, jsonEnd + 1);
-          try {
-            stores = JSON.parse(extractedJson);
-            console.log('Extracted JSON parse successful');
-          } catch (extractError) {
-            console.log('Extracted JSON parse failed');
-            console.log('Raw response:', text);
-            console.log('Cleaned text:', cleanedText);
-            console.log('Parse error:', parseError);
-            throw new Error(`Could not parse JSON response from OpenRouter. Raw response: ${text.substring(0, 500)}...`);
-          }
-        } else {
-          console.log('Could not find complete JSON structure');
-          console.log('Raw response:', text);
-          console.log('Cleaned text:', cleanedText);
-          console.log('Parse error:', parseError);
-          throw new Error(`Could not parse JSON response from OpenRouter. Raw response: ${text.substring(0, 500)}...`);
-        }
-      } else {
-        console.log('No JSON array found in response');
-        console.log('Raw response:', text);
-        console.log('Cleaned text:', cleanedText);
-        console.log('Parse error:', parseError);
-        throw new Error(`Could not parse JSON response from OpenRouter. Raw response: ${text.substring(0, 500)}...`);
-      }
-    }
-    return stores;
-  } catch (error) {
-    console.error('OpenRouter API error:', error);
-    throw error;
+      ],
+      temperature: 0.7,
+      max_tokens: 3000
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
   }
+
+  const data = await response.json();
+  const text = data.choices[0]?.message?.content || '';
+  
+  if (!text) {
+    throw new Error('Empty response from OpenRouter API');
+  }
+
+  return text;
 }
 
 export async function POST(request: Request) {
@@ -188,120 +108,82 @@ export async function POST(request: Request) {
 
     console.log(`Fetching discounts for category: ${category.name}`);
 
-    // Call OpenRouter API
-    const stores = await callOpenRouterForCategory(category.name);
-    
-    if (!Array.isArray(stores)) {
-      throw new Error('Invalid response format from OpenRouter');
+    // Use the centralized fetcher
+    const fetchResult = await DiscountFetcher.fetchAndValidate(
+      'OpenRouter',
+      category.name,
+      () => callOpenRouterForCategory(category.name)
+    );
+
+    if (!fetchResult.success) {
+      console.error('Fetch failed:', fetchResult.errors);
+      return NextResponse.json({ 
+        error: 'Failed to fetch discounts',
+        details: fetchResult.errors,
+        stats: fetchResult.stats
+      }, { status: 500 });
     }
 
-    let savedCount = 0;
-    let errorCount = 0;
+    // Save to database
+    const saveResult = await DiscountFetcher.saveToDatabase(
+      fetchResult.stores,
+      categoryId
+    );
 
-    // Process each store
-    for (const store of stores) {
+    // Send email notifications for new discounts
+    if (fetchResult.stores.length > 0) {
       try {
-        // Find or create store by url
-        let dbStore = await prisma.store.findFirst({ where: { url: store["Store URL"] } });
-        if (!dbStore) {
-          dbStore = await prisma.store.create({
-            data: {
-              name: store["Store name"] || store["Store Name"],
-              url: store["Store URL"],
-              suburb: store["Suburb"] || "Sydney", // Default to Sydney if null
-              categoryId: categoryId,
-              ownerId: 1, // TODO: assign correct owner
-              background: store["Background"] || null,
-            },
-          });
-        } else {
-          dbStore = await prisma.store.update({
-            where: { id: dbStore.id },
-            data: {
-              name: store["Store name"] || store["Store Name"],
-              suburb: store["Suburb"] || "Sydney", // Default to Sydney if null
-              categoryId: categoryId,
-              background: store["Background"] || null,
-            },
-          });
-        }
-
-        // Process discounts for this store
-        if (store["Discounts"] && Array.isArray(store["Discounts"])) {
-          for (const discount of store["Discounts"]) {
-            try {
-              // Parse dates safely
-              const startDate = parseDate(discount["start date"] || discount["start_date"]);
-              const endDate = parseDate(discount["end date"] || discount["end_date"]);
-              
-              // Skip discounts with invalid dates
-              if (!startDate || !endDate) {
-                console.log(`Skipping discount "${discount.title}" due to invalid dates`);
-                continue;
+        // Get all new discounts for email notifications
+        const newDiscounts = [];
+        for (const store of fetchResult.stores) {
+          for (const discount of store.discounts) {
+            // Check if this is a new discount by querying the database
+            const existingDiscount = await prisma.discount.findFirst({
+              where: {
+                store: { url: store.url },
+                title: discount.title
               }
+            });
 
-              // Find or create discount by storeId and title
-              let dbDiscount = await prisma.discount.findFirst({ 
-                where: { storeId: dbStore.id, title: discount.title } 
+            if (!existingDiscount) {
+              newDiscounts.push({
+                storeId: 0, // Will be updated after saving
+                title: discount.title,
+                description: discount.description,
+                percentage: discount.percentage,
+                coupon: discount.coupon,
+                endDate: new Date(discount.endDate),
               });
-              
-              if (!dbDiscount) {
-                dbDiscount = await prisma.discount.create({
-                  data: {
-                    storeId: dbStore.id,
-                    title: discount.title,
-                    description: discount.description || null,
-                    startDate: startDate,
-                    endDate: endDate,
-                  },
-                });
-                console.log(`Created discount: ${discount.title} for store: ${dbStore.name}`);
-                
-                // Send email notification for new discount
-                try {
-                  await sendDiscountNotifications(categoryId, [{
-                    id: dbDiscount.id,
-                    storeId: dbStore.id,
-                    title: discount.title,
-                    description: discount.description || null,
-                    percentage: discount.percentage || null,
-                    coupon: discount.coupon || null,
-                    endDate: endDate,
-                  }]);
-                } catch (emailError) {
-                  console.error('Failed to send email notification:', emailError);
-                }
-              } else {
-                dbDiscount = await prisma.discount.update({
-                  where: { id: dbDiscount.id },
-                  data: {
-                    description: discount.description || null,
-                    startDate: startDate,
-                    endDate: endDate,
-                  },
-                });
-                console.log(`Updated discount: ${discount.title} for store: ${dbStore.name}`);
-              }
-            } catch (discountError) {
-              console.error('Error saving discount:', discountError);
-              errorCount++;
             }
           }
         }
 
-        savedCount++;
-      } catch (storeError) {
-        console.error('Error saving store:', storeError);
-        errorCount++;
+                 // Send notifications if there are new discounts
+         if (newDiscounts.length > 0) {
+           // Create a temporary ID for email notifications
+           const discountsWithIds = newDiscounts.map((discount, index) => ({
+             ...discount,
+             id: -(index + 1), // Use negative IDs to indicate these are temporary
+           }));
+           await sendDiscountNotifications(categoryId, discountsWithIds);
+         }
+      } catch (emailError) {
+        console.error('Failed to send email notifications:', emailError);
+        // Don't fail the entire request if email fails
       }
     }
 
-    const message = `Successfully processed ${savedCount} stores with discounts for ${category.name}${errorCount > 0 ? ` (${errorCount} errors)` : ''}`;
+    const message = `Successfully processed ${saveResult.savedStores} stores with ${saveResult.savedDiscounts} discounts for ${category.name}`;
     
     return NextResponse.json({ 
       message,
-      storesProcessed: savedCount,
-      errors: errorCount
+      stats: {
+        ...fetchResult.stats,
+        savedStores: saveResult.savedStores,
+        savedDiscounts: saveResult.savedDiscounts,
+        saveErrors: saveResult.errors.length
+      },
+      errors: [...fetchResult.errors, ...saveResult.errors]
     });
 
   } catch (error) {

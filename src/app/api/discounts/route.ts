@@ -3,12 +3,31 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// GET: List all discounts
-export async function GET(req: Request) {
+// GET: Delete expired discounts, then list current offers.
+export async function GET() {
   console.log('DISCOUNTS ROUTE FILE LOADED');
   console.log('HIT /api/discounts');
   try {
+    const now = new Date();
+
+    const deletedExpiredDiscounts = await prisma.discount.deleteMany({
+      where: {
+        endDate: {
+          lt: now,
+        },
+      },
+    });
+
+    if (deletedExpiredDiscounts.count > 0) {
+      console.log(`Deleted ${deletedExpiredDiscounts.count} expired discounts before returning current offers`);
+    }
+
     const discounts = await prisma.discount.findMany({
+      where: {
+        endDate: {
+          gte: now,
+        },
+      },
       include: { store: true },
     });
     return NextResponse.json(discounts);
@@ -29,11 +48,15 @@ export async function POST(request: Request) {
         description: data.description,
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
-        image: data.image || null,
+        eCatalog: Array.isArray(data.eCatalog)
+          ? data.eCatalog
+          : data.image
+            ? [data.image]
+            : [],
       },
     });
     return NextResponse.json(discount);
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: 'Failed to create discount' }, { status: 500 });
   }
 }

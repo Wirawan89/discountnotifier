@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { sendDiscountNotifications } from '../../../../lib/email';
+import { DiscountFetcher } from '../../../../lib/discount-fetcher';
 
 const prisma = new PrismaClient();
 
 // Helper to call Claude API
-async function callClaudeForCategory(categoryName: string) {
+async function callClaudeForCategory(categoryName: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set in .env');
 
-  const prompt = `Find all websites in New South Wales (NSW), Australia, in the "${categoryName}" category offering sales or discounts. For each, return a JSON array with objects containing:
+  const prompt = `Find all websites in New South Wales (NSW), Australia, in the "${categoryName}" category offering sales or discounts.
+Before including an offer, check the store homepage and at least one relevant second page such as sale, deals, clearance, hot deals, offers, promotions, or outlet.
+Only include a discount when the checked page visibly uses wording such as Discount, Sale, Clearance, Deal, Hot Deal, Offer, Promo, Outlet, or Save.
+If no matching wording is visible for a store, include the store with an empty discounts array.
+For each, return a JSON array with objects containing:
 - Store name
 - Store URL
 - Suburb
@@ -21,7 +26,7 @@ async function callClaudeForCategory(categoryName: string) {
 - E-catalog image URLs (jpg/png, as array)
 - For each discount: title, description, start date, end date, percentage discount, coupon (if any), e-catalog image URLs (as array)
 
-Return only valid JSON, no additional text.`;
+Return only valid JSON, no additional text. Use YYYY-MM-DD format for dates.`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -49,27 +54,12 @@ Return only valid JSON, no additional text.`;
 
   const data = await response.json();
   const text = data.content?.[0]?.text || '';
-  return text;
-}
-
-// Helper to parse Claude response (expects JSON)
-function parseClaudeResponse(text: string) {
-  // Try to parse as JSON first
-  try {
-    return JSON.parse(text);
-  } catch {
-    // Fallback: try to extract JSON from text if it's wrapped
-    const jsonMatch = text.match(/\[.*\]/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch {
-        // If still fails, return empty array
-        return [];
-      }
-    }
-    return [];
+  
+  if (!text) {
+    throw new Error('Empty response from Claude API');
   }
+
+  return text;
 }
 
 export async function POST(req: Request) {
@@ -87,106 +77,87 @@ export async function POST(req: Request) {
       catName = cat.name;
     }
 
-    // Call Claude API
-    const claudeText = await callClaudeForCategory(catName!);
-    const storesData = parseClaudeResponse(claudeText);
+    console.log(`Fetching discounts for category: ${catName}`);
 
-    if (!Array.isArray(storesData)) {
-      return NextResponse.json({ error: 'Claude response could not be parsed as array' }, { status: 500 });
+    // Use the centralized fetcher
+    const fetchResult = await DiscountFetcher.fetchAndValidate(
+      'Claude',
+      catName!,
+      () => callClaudeForCategory(catName!)
+    );
+
+    if (!fetchResult.success) {
+      console.error('Fetch failed:', fetchResult.errors);
+      return NextResponse.json({ 
+        error: 'Failed to fetch discounts',
+        details: fetchResult.errors,
+        stats: fetchResult.stats
+      }, { status: 500 });
     }
 
-    let savedStores = 0;
-    let savedDiscounts = 0;
-    for (const store of storesData) {
-      // Upsert store by url
-      const dbStore = await prisma.store.upsert({
-        where: { url: store.url },
-        update: {
-          name: store.name,
-          suburb: store.suburb,
-          city: store.city || "",
-          country: store.country || "",
-          contact: store.contact,
-          address: store.address,
-          description: store.description,
-          catalogs: store.catalogs || [],
-          categoryId: categoryId || undefined,
-        },
-        create: {
-          name: store.name,
-          url: store.url,
-          suburb: store.suburb,
-          city: store.city || "",
-          country: store.country || "",
-          contact: store.contact,
-          address: store.address,
-          description: store.description,
-          catalogs: store.catalogs || [],
-          categoryId: categoryId || undefined,
-          ownerId: 1, // TODO: assign correct owner
-        },
-      });
-      savedStores++;
-      // Upsert discounts for this store
-      if (Array.isArray(store.discounts)) {
-        for (const discount of store.discounts) {
-          const dbDiscount = await prisma.discount.upsert({
-            where: {
-              storeId_title: {
-                storeId: dbStore.id,
-                title: discount.title,
-              },
-            },
-            update: {
-              description: discount.description,
-              startDate: new Date(discount.startDate),
-              endDate: new Date(discount.endDate),
-              percentage: discount.percentage,
-              coupon: discount.coupon,
-              eCatalog: discount.eCatalog || [],
-            },
-            create: {
-              storeId: dbStore.id,
-              title: discount.title,
-              description: discount.description,
-              startDate: new Date(discount.startDate),
-              endDate: new Date(discount.endDate),
-              percentage: discount.percentage,
-              coupon: discount.coupon,
-              eCatalog: discount.eCatalog || [],
-            },
-          });
-          
-          // Send email notification for new discount (only if it was created, not updated)
-          if (dbDiscount.createdAt.getTime() === dbDiscount.updatedAt.getTime()) {
-            try {
-              await sendDiscountNotifications(categoryId || 0, [{
-                id: dbDiscount.id,
-                storeId: dbStore.id,
+    // Save to database
+    const saveResult = await DiscountFetcher.saveToDatabase(
+      fetchResult.stores,
+      categoryId || 0
+    );
+
+    // Send email notifications for new discounts
+    if (fetchResult.stores.length > 0) {
+      try {
+        // Get all new discounts for email notifications
+        const newDiscounts = [];
+        for (const store of fetchResult.stores) {
+          for (const discount of store.discounts) {
+            // Check if this is a new discount by querying the database
+            const existingDiscount = await prisma.discount.findFirst({
+              where: {
+                store: { url: store.url },
+                title: discount.title
+              }
+            });
+
+            if (!existingDiscount) {
+              newDiscounts.push({
+                storeId: 0, // Will be updated after saving
                 title: discount.title,
                 description: discount.description,
                 percentage: discount.percentage,
                 coupon: discount.coupon,
                 endDate: new Date(discount.endDate),
-              }]);
-            } catch (emailError) {
-              console.error('Failed to send email notification:', emailError);
+              });
             }
           }
-          
-          savedDiscounts++;
         }
+
+        // Send notifications if there are new discounts
+        if (newDiscounts.length > 0) {
+          // Create a temporary ID for email notifications
+          const discountsWithIds = newDiscounts.map((discount, index) => ({
+            ...discount,
+            id: -(index + 1), // Use negative IDs to indicate these are temporary
+          }));
+          await sendDiscountNotifications(categoryId || 0, discountsWithIds);
+        }
+      } catch (emailError) {
+        console.error('Failed to send email notifications:', emailError);
+        // Don't fail the entire request if email fails
       }
     }
 
     return NextResponse.json({
-      message: `Saved ${savedStores} stores and ${savedDiscounts} discounts for category ${catName}`,
-      stores: savedStores,
-      discounts: savedDiscounts,
+      message: `Successfully processed ${saveResult.savedStores} stores with ${saveResult.savedDiscounts} discounts for category ${catName}`,
+      stats: {
+        ...fetchResult.stats,
+        savedStores: saveResult.savedStores,
+        savedDiscounts: saveResult.savedDiscounts,
+        saveErrors: saveResult.errors.length
+      },
+      errors: [...fetchResult.errors, ...saveResult.errors]
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 });
+    console.error('Claude fetch error:', err);
+    return NextResponse.json({ 
+      error: err.message || 'Unknown error occurred' 
+    }, { status: 500 });
   }
-}
-
-// Note: Set your Anthropic API key in .env as ANTHROPIC_API_KEY=your_key_here 
+} 

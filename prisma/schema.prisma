@@ -19,11 +19,13 @@ model User {
   password      String
   name          String?
   suburb        String
+  role          String    @default("user") // "user" or "admin"
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @default(now())
   stores        Store[]
   notifications Notification[]
   preferences   UserPreference?
+  accessLogs    UserAccessLog[]
   
   // NextAuth fields
   accounts      Account[]
@@ -146,4 +148,74 @@ model Category {
   id    Int    @id @default(autoincrement())
   name  String @unique
   stores Store[]
+  fetchLogs CategoryFetchLog[]
+  userAccessLogs UserAccessLog[]
+  tokenUsageLogs TokenUsageLog[]
+  aiPerformanceLogs AiPerformanceLog[]
+}
+
+model CategoryFetchLog {
+  id              Int      @id @default(autoincrement())
+  category        Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId      Int
+  lastFetchedAt   DateTime @default(now())
+  refreshPeriodDays Int    @default(3) // Default 3 days, configurable per category
+  storesFetched   Int      @default(0)
+  discountsFetched Int     @default(0)
+  fetchStatus     String   @default("success") // success, failed, partial, fetching
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([categoryId])
+}
+
+model ApiConfiguration {
+  id          Int      @id @default(autoincrement())
+  provider    String   @unique // "openrouter", "gemini", "claude"
+  isEnabled   Boolean  @default(true)
+  apiKey      String?
+  modelName   String?  // e.g., "perplexity/sonar"
+  maxTokens   Int      @default(3000)
+  temperature Float    @default(0.7)
+  priority    Int      @default(1) // 1 = highest priority
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model UserAccessLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  action     String   // "view_category", "view_store", "view_discount", "smart_fetch"
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+}
+
+model TokenUsageLog {
+  id         Int      @id @default(autoincrement())
+  provider   String   // "openrouter", "gemini", "claude"
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tokensUsed Int
+  cost       Float?
+  status     String   @default("success") // "success", "failed", "rate_limited"
+  errorMessage String?
+  createdAt  DateTime @default(now())
+}
+
+model AiPerformanceLog {
+  id         Int      @id @default(autoincrement())
+  provider   String   // "openrouter", "gemini", "claude"
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  responseTime Float  // in milliseconds
+  successRate Float   // percentage (0-100)
+  dataQuality Float   // percentage (0-100) - based on validation results
+  storesFound Int     @default(0)
+  discountsFound Int  @default(0)
+  createdAt  DateTime @default(now())
 }

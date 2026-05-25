@@ -10,7 +10,7 @@ const createTransporter = () => {
   
   // Gmail configuration (for development)
   if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
@@ -21,7 +21,7 @@ const createTransporter = () => {
   
   // SendGrid configuration (recommended for production)
   if (process.env.SENDGRID_API_KEY) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: 'smtp.sendgrid.net',
       port: 587,
       secure: false,
@@ -34,7 +34,7 @@ const createTransporter = () => {
   
   // Resend configuration
   if (process.env.RESEND_API_KEY) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: 'smtp.resend.com',
       port: 587,
       secure: false,
@@ -46,7 +46,7 @@ const createTransporter = () => {
   }
   
   // Default to Gmail with environment variables
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.EMAIL_USER || 'your-email@gmail.com',
@@ -314,5 +314,70 @@ export async function sendWelcomeEmail(userEmail: string, userName: string) {
     console.log(`Welcome email sent successfully to ${userEmail}`);
   } catch (error) {
     console.error(`Failed to send welcome email to ${userEmail}:`, error);
+  }
+}
+
+// Function to send password reset email
+export async function sendPasswordResetEmail(
+  userEmail: string,
+  userName: string,
+  resetUrl: string
+) {
+  try {
+    const transporter = createTransporter();
+
+    const subject = 'Reset your DiscountNotifier password';
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Reset your password</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #2563eb; margin: 0; font-size: 26px;">DiscountNotifier</h1>
+              <p style="color: #6b7280; margin: 10px 0 0 0;">Password reset request</p>
+            </div>
+
+            <h2 style="color: #1f2937; margin-bottom: 20px;">Hi ${userName},</h2>
+
+            <p style="color: #374151; margin-bottom: 20px;">
+              We received a request to reset your DiscountNotifier password. Use the button below to create a new password.
+            </p>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}"
+                 style="background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
+                Reset Password
+              </a>
+            </div>
+
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 20px;">
+              This link expires in 1 hour. If you did not request a password reset, you can safely ignore this email.
+            </p>
+
+            <p style="color: #9ca3af; font-size: 12px; word-break: break-all;">
+              If the button does not work, paste this link into your browser:<br>
+              ${resetUrl}
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@discountnotifier.com',
+      to: userEmail,
+      subject,
+      html,
+    });
+
+    console.log(`Password reset email sent successfully to ${userEmail}`);
+  } catch (error) {
+    console.error(`Failed to send password reset email to ${userEmail}:`, error);
+    throw error;
   }
 }

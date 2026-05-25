@@ -221,6 +221,15 @@ export default function SignIn() {
             </div>
           </div>
 
+          <div className="flex justify-end">
+            <Link
+              href="/auth/forgot-password"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+            >
+              Forgot Password?
+            </Link>
+          </div>
+
           {error && (
             <div className="text-red-600 text-sm text-center">{error}</div>
           )}
