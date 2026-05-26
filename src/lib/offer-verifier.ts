@@ -7,7 +7,7 @@ export type OfferVerificationResult = {
 
 export type OfferVerifierOptions = {
   country?: string;
-  profile?: "retail" | "retailShop" | "dining";
+  profile?: "retail" | "retailShop" | "dining" | "entertainment" | "services";
 };
 
 type UrlToCheck = {
@@ -54,10 +54,15 @@ const OFFER_KEYWORDS = [
 const OFFER_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: "save $", pattern: /\bsave\s*\$+\s*\d+/i },
   { label: "$ off", pattern: /\$\s*\d+(?:\.\d{1,2})?\s*off\b/i },
+  { label: "$ bonus", pattern: /\$\s*\d+(?:\.\d{1,2})?\s*(?:bonus|cashback|cash\s*back|credit)\b/i },
   { label: "% off", pattern: /\b\d+(?:\.\d+)?%\s*off\b/i },
   { label: "half price", pattern: /\b(?:1\/2|half)\s*price\b/i },
   { label: "off rrp", pattern: /\boff\s+rrp\b/i },
   { label: "money saving", pattern: /\bsave\s+\d+(?:\.\d+)?\s*(?:dollars|aud)\b/i },
+  { label: "cashback", pattern: /\bcash\s*back|cashback\b/i },
+  { label: "bonus offer", pattern: /\b(?:bonus|welcome|sign[-\s]?up)\s+(?:offer|bonus|credit)\b/i },
+  { label: "free trial", pattern: /\bfree\s+(?:trial|month|membership|consultation|quote)\b/i },
+  { label: "fee waiver", pattern: /\b(?:no|zero|waived?)\s+(?:monthly|annual|joining|setup|account)?\s*fees?\b/i },
   { label: "markdown price", pattern: /\boriginally\s+(?:aud\s*)?\$\s*\d+(?:\.\d{1,2})?/i },
 ];
 
@@ -105,6 +110,46 @@ const DINING_STRONG_OFFER_KEYWORDS = new Set([
   "special deals",
 ]);
 
+const ENTERTAINMENT_STRONG_OFFER_KEYWORDS = new Set([
+  "discount",
+  "discounts",
+  "deal",
+  "deals",
+  "hot deal",
+  "special offer",
+  "special offers",
+  "special deal",
+  "special deals",
+  "promo",
+  "promotion",
+  "save $",
+  "$ off",
+  "% off",
+  "half price",
+  "money saving",
+]);
+
+const SERVICES_STRONG_OFFER_KEYWORDS = new Set([
+  "discount",
+  "discounts",
+  "deal",
+  "deals",
+  "special offer",
+  "special offers",
+  "special deal",
+  "special deals",
+  "promo",
+  "promotion",
+  "$ bonus",
+  "$ off",
+  "% off",
+  "cashback",
+  "bonus offer",
+  "free trial",
+  "fee waiver",
+  "money saving",
+]);
+
 const RETAIL_SHOP_STRONG_OFFER_KEYWORDS = new Set([
   "sale",
   "on sale",
@@ -135,7 +180,7 @@ const RETAIL_SHOP_STRONG_OFFER_KEYWORDS = new Set([
 ]);
 
 const NON_OFFER_PAGE_PATTERN =
-  /(dealer|distributor|find[-\s]?store|store[-\s]?locator|service[-\s]?center|support|warranty|manual|faq|help[-\s]?centre|help[-\s]?center|ordering|news|press|article|terms|conditions|privacy|policy)/i;
+  /(linktr\.ee|dealer|distributor|find[-\s]?store|store[-\s]?locator|service[-\s]?center|support|warranty|manual|faq|help[-\s]?centre|help[-\s]?center|ordering|news|press|article|terms|conditions|privacy|policy)/i;
 
 const OFFER_LINK_PATTERN =
   /(discount|sale|clearance|clerance|clearence|deal|hot[-\s]?deal|happy[-\s]?hour|eofy|end[-\s]?of[-\s]?financial[-\s]?year|special|special[-\s]?price|limited[-\s]?time[-\s]?offer|offer|promo|promotion|outlet|catalogue|catalog|what'?s[-\s]?on|markdown|reduced|save|\$\s*\d+\s*off|\d+%\s*off|(?:1\/2|half)\s*price|off\s+rrp)/i;
@@ -190,6 +235,24 @@ const DINING_OFFER_PATHS = [
   "/offers",
   "/whats-on",
   "/whatson",
+];
+
+const ENTERTAINMENT_OFFER_PATHS = [
+  "/deals",
+  "/offers",
+  "/special-offers",
+  "/special-deals",
+  "/promotions",
+  "/promo",
+];
+
+const SERVICES_OFFER_PATHS = [
+  "/deals",
+  "/offers",
+  "/special-offers",
+  "/promotions",
+  "/pricing",
+  "/plans",
 ];
 
 const MAX_DISCOVERED_LINKS = 8;
@@ -302,6 +365,90 @@ function hasRetailShopCatalogueEvidence(url: string, pageText: string): boolean 
   );
 }
 
+function hasEntertainmentOfferEvidence(matchedKeywords: string[], url: string, pageText = ""): boolean {
+  if (NON_OFFER_PAGE_PATTERN.test(url)) {
+    return false;
+  }
+
+  const hasExplicitSavings = OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(pageText));
+  const hasStrongEventKeyword = matchedKeywords.some((keyword) =>
+    ENTERTAINMENT_STRONG_OFFER_KEYWORDS.has(keyword)
+  );
+  const hasOfferIntentUrl =
+    /(discount|deal|special[-\s]?offer|special[-\s]?deal|promo|promotion|cheap|saver|value|member)/i.test(url);
+  const hasAvailabilityOnlyText =
+    /\b(tickets?\s+(?:are\s+)?(?:now\s+)?on\s+sale|tickets?\s+on\s+sale\s+now|now\s+on\s+sale|on\s+sale\s+now|tickets?\s+available|book\s+now)\b/i.test(
+      pageText
+    );
+
+  if (hasExplicitSavings && hasStrongEventKeyword) {
+    return true;
+  }
+
+  if (hasStrongEventKeyword && (hasOfferIntentUrl || !hasAvailabilityOnlyText)) {
+    return true;
+  }
+
+  if (!pageText && hasStrongEventKeyword && hasOfferIntentUrl) {
+    return true;
+  }
+
+  return false;
+}
+
+function hasDiningOfferEvidence(matchedKeywords: string[], url: string, pageText = ""): boolean {
+  if (NON_OFFER_PAGE_PATTERN.test(url)) {
+    return false;
+  }
+
+  const hasHappyHour = matchedKeywords.some((keyword) => /^happy hours?$/i.test(keyword));
+  const hasDiningKeyword = matchedKeywords.some((keyword) => DINING_STRONG_OFFER_KEYWORDS.has(keyword));
+  const hasExplicitSavings = OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(pageText));
+  const hasOfferIntentUrl =
+    /(happy[-\s]?hours?|special[-\s]?offers?|special[-\s]?deals?|deals?|offers?|what'?s[-\s]?on|whatson)/i.test(url);
+  const hasAccommodationOfferUrl =
+    /(hotel[-_/ ]?offers?|accommodation|rooms?|suites?|stay|stays|packages?)/i.test(url) &&
+    !/(restaurant|restaurants|dining|bar|bars|food|drink|happy[-\s]?hours?)/i.test(url);
+  const newsletterOnlySignal =
+    /\b(?:stay\s+in\s+touch|newsletter|newsletters|subscribe|sign\s+up|first\s+to\s+hear)\b[\s\S]{0,180}\b(?:special\s+offers?|special\s+deals?|offers?|deals?)\b/i.test(
+      pageText
+    );
+
+  if (hasHappyHour) {
+    return true;
+  }
+
+  if (!hasDiningKeyword) {
+    return false;
+  }
+
+  if (hasAccommodationOfferUrl) {
+    return false;
+  }
+
+  if (newsletterOnlySignal && !hasExplicitSavings && !hasOfferIntentUrl) {
+    return false;
+  }
+
+  return hasExplicitSavings || hasOfferIntentUrl;
+}
+
+function hasServicesOfferEvidence(matchedKeywords: string[], url: string, pageText = ""): boolean {
+  if (NON_OFFER_PAGE_PATTERN.test(url)) {
+    return false;
+  }
+
+  const hasServiceOfferPattern = OFFER_TEXT_PATTERNS.some(({ label, pattern }) =>
+    SERVICES_STRONG_OFFER_KEYWORDS.has(label) && pattern.test(pageText)
+  );
+  const hasStrongServiceKeyword = matchedKeywords.some((keyword) =>
+    SERVICES_STRONG_OFFER_KEYWORDS.has(keyword)
+  );
+  const hasOfferIntentUrl = /(deal|offer|special|promo|promotion|pricing|plan|cashback|bonus|free)/i.test(url);
+
+  return hasServiceOfferPattern || (hasStrongServiceKeyword && hasOfferIntentUrl);
+}
+
 function normalizeCountry(country?: string): string | undefined {
   if (!country || country.trim().length === 0) {
     return undefined;
@@ -380,7 +527,15 @@ function hasStrongOfferEvidence(
   profile: OfferVerifierOptions["profile"] = "retail"
 ): boolean {
   if (profile === "dining") {
-    return matchedKeywords.some((keyword) => DINING_STRONG_OFFER_KEYWORDS.has(keyword));
+    return hasDiningOfferEvidence(matchedKeywords, url, pageText);
+  }
+
+  if (profile === "entertainment") {
+    return hasEntertainmentOfferEvidence(matchedKeywords, url, pageText);
+  }
+
+  if (profile === "services") {
+    return hasServicesOfferEvidence(matchedKeywords, url, pageText);
   }
 
   if (profile === "retailShop") {
@@ -492,7 +647,15 @@ function addCommonOfferUrls(
   try {
     const base = new URL(baseUrl);
     const commonPaths =
-      profile === "dining" ? DINING_OFFER_PATHS : profile === "retailShop" ? [] : COMMON_OFFER_PATHS;
+      profile === "dining"
+        ? DINING_OFFER_PATHS
+        : profile === "entertainment"
+          ? ENTERTAINMENT_OFFER_PATHS
+          : profile === "services"
+            ? SERVICES_OFFER_PATHS
+            : profile === "retailShop"
+              ? []
+              : COMMON_OFFER_PATHS;
 
     commonPaths.forEach((path) => {
       urls.add(new URL(path, base.origin).toString());
@@ -544,13 +707,6 @@ export class OfferVerifier {
     catalogUrls
       .map(normalizeUrl)
       .filter((url): url is string => Boolean(url))
-      .filter(
-        (url) =>
-          options.profile !== "retailShop" ||
-          hasExplicitSavingsInUrl(url) ||
-          hasTrustedOfferIntentInUrl(url) ||
-          /\b(catalogue|catalog)\b/i.test(url)
-      )
       .forEach((url) => queueUrl(url, 2, "catalog", queuedUrls, urlsToCheck));
 
     if (normalizedStoreUrl) {
@@ -592,11 +748,24 @@ export class OfferVerifier {
         continue;
       }
 
-      const matchedKeywords = findKeywords(page.text);
+      const matchedKeywords = Array.from(
+        new Set([
+          ...findKeywords(page.text),
+          ...(current.source === "catalog" ? findKeywordsInUrl(current.url) : []),
+        ])
+      );
+      const hasTrustedRetailShopCatalogPage =
+        options.profile === "retailShop" &&
+        current.source === "catalog" &&
+        hasTrustedOfferIntentInUrl(current.url) &&
+        !NON_OFFER_PAGE_PATTERN.test(current.url) &&
+        matchedKeywords.some((keyword) => RETAIL_SHOP_STRONG_OFFER_KEYWORDS.has(keyword));
+
       if (
         matchedKeywords.length > 0 &&
         isCountryRelevant(current.url, options.country, page.text) &&
-        hasStrongOfferEvidence(matchedKeywords, current.url, page.text, options.profile)
+        (hasTrustedRetailShopCatalogPage ||
+          hasStrongOfferEvidence(matchedKeywords, current.url, page.text, options.profile))
       ) {
         return {
           hasOffer: true,

@@ -39,20 +39,30 @@ export interface FetchResult {
   };
 }
 
-function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'dining' {
+function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'dining' | 'entertainment' | 'services' {
   if (categoryName === 'Dining & Beverages' || categoryName === 'Caffe & Brunch') {
     return 'dining';
   }
 
+  if (categoryName === 'Entertainment & Events') {
+    return 'entertainment';
+  }
+
+  if (categoryName === 'Financial & Services') {
+    return 'services';
+  }
+
   if (
     categoryName === 'Sport Gears' ||
+    categoryName === 'Music Gears' ||
+    categoryName === 'Food & Groceries' ||
     categoryName === 'Cosmetic & Perfumes' ||
     categoryName === 'Clothing & Fashions' ||
     categoryName === 'Electronic & Gadgets' ||
     categoryName === 'Baby & Kids' ||
+    categoryName === 'Home & Garden' ||
     categoryName === 'Luxury & Designer' ||
     categoryName === 'HIFI Audio & Speakers' ||
-    categoryName === 'Entertainment & Events' ||
     categoryName === 'Gifts & Flowers' ||
     categoryName === 'Travel & Accommodation' ||
     categoryName === 'Vitamins & Supplements' ||
@@ -327,6 +337,10 @@ export class DiscountFetcher {
           ? hasHappyHour
             ? `${storeName} Happy Hour and Special Offers`
             : `${storeName} Special Offers`
+          : profile === 'entertainment'
+            ? `${storeName} Event Deals and Offers`
+          : profile === 'services'
+            ? `${storeName} Service Deals and Offers`
           : hasEofyOffer
             ? `${storeName} EOFY Deals`
             : `${storeName} current sale and offers`,

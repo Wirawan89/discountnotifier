@@ -487,6 +487,71 @@ async function main() {
       city: 'Sydney',
       catalogs: [],
     },
+    {
+      name: 'Foodland Australia',
+      url: 'https://www.foodlandsa.com.au/',
+      suburb: 'Adelaide',
+      city: 'Adelaide',
+      catalogs: [
+        'https://www.foodlandsa.com.au/catalogue/',
+        'https://www.foodlandsa.com.au/specials/',
+      ],
+    },
+    {
+      name: 'Drakes Supermarkets',
+      url: 'https://drakes.com.au/',
+      suburb: 'Brisbane',
+      city: 'Brisbane',
+      catalogs: [
+        'https://drakes.com.au/specials/',
+        'https://drakes.com.au/catalogue/',
+      ],
+    },
+    {
+      name: 'Ritchies IGA',
+      url: 'https://www.ritchies.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [
+        'https://www.ritchies.com.au/catalogue',
+        'https://www.ritchies.com.au/promotions',
+      ],
+    },
+    {
+      name: 'QE Foodstores',
+      url: 'https://qefoodstores.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://qefoodstores.com.au/specials/'],
+    },
+    {
+      name: 'The Fruitologist',
+      url: 'https://www.thefruitologist.com.au/',
+      suburb: 'Rozelle',
+      city: 'Sydney',
+      catalogs: ['https://www.thefruitologist.com.au/specials'],
+    },
+    {
+      name: 'Panetta Mercato',
+      url: 'https://panettamercato.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://panettamercato.com.au/specials/'],
+    },
+    {
+      name: 'The Meat Emporium',
+      url: 'https://www.meatemporium.com.au/',
+      suburb: 'Alexandria',
+      city: 'Sydney',
+      catalogs: ['https://www.meatemporium.com.au/specials'],
+    },
+    {
+      name: 'FruitEzy',
+      url: 'https://fruitezy.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://fruitezy.com.au/collections/specials'],
+    },
   ];
 
   await Promise.all(
@@ -611,6 +676,153 @@ async function main() {
       url: 'https://nudieglow.com/',
       catalogs: ['https://nudieglow.com/collections/sale'],
     },
+    {
+      name: 'Myer Beauty Australia',
+      url: 'https://www.myer.com.au/c/beauty',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.myer.com.au/c/offers/sale-all/sale-beauty'],
+    },
+    {
+      name: 'David Jones Beauty',
+      url: 'https://www.davidjones.com/beauty',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://www.davidjones.com/sale/beauty'],
+    },
+    {
+      name: 'LUSH Australia',
+      url: 'https://www.lush.com/au/en',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.lush.com/au/en/c/sale'],
+    },
+    {
+      name: 'The Body Shop Australia',
+      url: 'https://www.thebodyshop.com/en-au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.thebodyshop.com/en-au/sale/c/c00113'],
+    },
+    {
+      name: 'Aesop Australia',
+      url: 'https://www.aesop.com/au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Cosmetic Capital',
+      url: 'https://www.cosmeticcapital.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://www.cosmeticcapital.com.au/collections/sale'],
+    },
+    {
+      name: 'BEAUTE KNOWS',
+      url: 'https://beauteknows.com.au/',
+      suburb: 'Adelaide',
+      city: 'Adelaide',
+      catalogs: ['https://beauteknows.com.au/collections/sale'],
+    },
+    {
+      name: 'Active Skin',
+      url: 'https://www.activeskin.com.au/',
+      suburb: 'Newcastle',
+      city: 'Newcastle',
+      catalogs: ['https://www.activeskin.com.au/sale'],
+    },
+    {
+      name: 'La Cosmetique',
+      url: 'https://lacosmetique.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://lacosmetique.com.au/collections/sale'],
+    },
+    {
+      name: 'Cosme Hut Australia',
+      url: 'https://cosmehut.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://cosmehut.com.au/collections/sale'],
+    },
+    {
+      name: 'Paula’s Choice Australia',
+      url: 'https://www.paulaschoice.com.au/',
+      suburb: 'Brisbane',
+      city: 'Brisbane',
+      catalogs: ['https://www.paulaschoice.com.au/special-offers'],
+    },
+    {
+      name: 'MCoBeauty',
+      url: 'https://mcobeauty.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://mcobeauty.com.au/collections/sale'],
+    },
+    {
+      name: 'Nude by Nature',
+      url: 'https://nudebynature.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://nudebynature.com.au/collections/sale'],
+    },
+    {
+      name: 'Napoleon Perdis',
+      url: 'https://napoleonperdis.com/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://napoleonperdis.com/collections/sale'],
+    },
+    {
+      name: 'KIKO Milano Australia',
+      url: 'https://www.kikocosmetics.com/en-au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.kikocosmetics.com/en-au/sale/'],
+    },
+    {
+      name: 'M·A·C Cosmetics Australia',
+      url: 'https://www.maccosmetics.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.maccosmetics.com.au/offers'],
+    },
+    {
+      name: 'Estée Lauder Australia',
+      url: 'https://www.esteelauder.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.esteelauder.com.au/offers'],
+    },
+    {
+      name: 'Clinique Australia',
+      url: 'https://www.clinique.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.clinique.com.au/offers'],
+    },
+    {
+      name: 'Ultra Beauty Australia',
+      url: 'https://www.chemistwarehouse.com.au/ultra-beauty',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.chemistwarehouse.com.au/catalogue'],
+    },
+    {
+      name: 'Hairhouse Australia',
+      url: 'https://www.hairhouse.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: ['https://www.hairhouse.com.au/sale'],
+    },
+    {
+      name: 'SkincareStore Australia',
+      url: 'https://www.skincarestore.com.au/',
+      suburb: 'Perth',
+      city: 'Perth',
+      catalogs: ['https://www.skincarestore.com.au/sale.list'],
+    },
   ];
 
   await Promise.all(
@@ -619,16 +831,16 @@ async function main() {
         where: { url: store.url },
         update: {
           name: store.name,
-          suburb: 'Sydney',
-          city: 'Sydney',
+          suburb: store.suburb || 'Sydney',
+          city: store.city || 'Sydney',
           country: 'Australia',
           catalogs: store.catalogs,
           categoryId: cosmeticPerfumesCategory.id,
         },
         create: {
           name: store.name,
-          suburb: 'Sydney',
-          city: 'Sydney',
+          suburb: store.suburb || 'Sydney',
+          city: store.city || 'Sydney',
           country: 'Australia',
           catalogs: store.catalogs,
           categoryId: cosmeticPerfumesCategory.id,
@@ -721,6 +933,26 @@ async function main() {
   }
 
   const electronicGadgetStores = [
+    {
+      name: 'JB Hi-Fi',
+      url: 'https://www.jbhifi.com.au/',
+      catalogs: [
+        'https://www.jbhifi.com.au/collections/all-products-on-sale?page=1',
+        'https://www.jbhifi.com.au/collections/hot-deals',
+        'https://www.jbhifi.com.au/collections/tvs/hisense-tv-clearance',
+        'https://www.jbhifi.com.au/collections/camera-clearance',
+      ],
+    },
+    {
+      name: 'Bing Lee',
+      url: 'https://www.binglee.com.au/',
+      catalogs: [
+        'https://www.binglee.com.au/articles/sales/afterpay-day-sale',
+        'https://www.binglee.com.au/categories/promotions/hot-tax-time-deals-on-selected-appliances',
+        'https://www.binglee.com.au/stores/online-sales',
+        'https://www.binglee.com.au/categories/promotions/clearance',
+      ],
+    },
     {
       name: 'The Good Guys',
       url: 'https://www.thegoodguys.com.au/',
@@ -982,7 +1214,14 @@ async function main() {
     {
       name: 'Cambridge Audio at Addicted To Audio',
       url: 'https://addictedtoaudio.com.au/collections/cambridge-audio',
-      catalogs: ['https://addictedtoaudio.com.au/collections/cambridge-audio'],
+      catalogs: [
+        'https://addictedtoaudio.com.au/collections/cambridge-audio',
+        'https://addictedtoaudio.com.au/products/cambridge-audio-melomania-m100-true-wireless-headphones-black',
+        'https://addictedtoaudio.com.au/products/cambridge-audio-mxn10-network-audio-player',
+        'https://addictedtoaudio.com.au/products/cambridge-audio-duo-moving-coil-moving-magnet-phono-preamplifier',
+        'https://addictedtoaudio.com.au/collections/sale',
+        'https://addictedtoaudio.com.au/collections/clearance',
+      ],
     },
     {
       name: 'Rega at Vision Hifi',
@@ -1702,6 +1941,125 @@ async function main() {
           country: 'Australia',
           catalogs: store.catalogs,
           categoryId: toolsDiyCategory.id,
+          url: store.url,
+          ownerId: user.id,
+        },
+      })
+    )
+  );
+
+  const homeGardenCategory = categories.find((category) => category.name === 'Home & Garden');
+
+  if (!homeGardenCategory) {
+    throw new Error('Home & Garden category was not created');
+  }
+
+  const homeGardenStores = [
+    {
+      name: 'Bunnings Garden',
+      url: 'https://www.bunnings.com.au/products/garden',
+      catalogs: [
+        'https://www.bunnings.com.au/products/garden',
+        'https://www.bunnings.com.au/special-orders',
+      ],
+    },
+    {
+      name: 'IKEA Home & Garden Australia',
+      url: 'https://www.ikea.com/au/en/rooms/',
+      catalogs: ['https://www.ikea.com/au/en/offers/'],
+    },
+    {
+      name: 'Temple & Webster',
+      url: 'https://www.templeandwebster.com.au/',
+      catalogs: [
+        'https://www.templeandwebster.com.au/Sale-C613972.html',
+        'https://www.templeandwebster.com.au/clearance',
+      ],
+    },
+    {
+      name: 'Freedom Furniture',
+      url: 'https://www.freedom.com.au/',
+      catalogs: ['https://www.freedom.com.au/sale'],
+    },
+    {
+      name: 'Fantastic Furniture',
+      url: 'https://www.fantasticfurniture.com.au/',
+      catalogs: ['https://www.fantasticfurniture.com.au/Categories/Sale/c/Sale'],
+    },
+    {
+      name: 'Amart Furniture',
+      url: 'https://www.amartfurniture.com.au/',
+      catalogs: ['https://www.amartfurniture.com.au/sale/'],
+    },
+    {
+      name: 'Adairs Australia',
+      url: 'https://www.adairs.com.au/',
+      catalogs: ['https://www.adairs.com.au/sale/'],
+    },
+    {
+      name: 'Spotlight Home',
+      url: 'https://www.spotlightstores.com/home',
+      catalogs: ['https://www.spotlightstores.com/sale'],
+    },
+    {
+      name: "Bed Bath N' Table",
+      url: 'https://www.bedbathntable.com.au/',
+      catalogs: ['https://www.bedbathntable.com.au/clearance-online'],
+    },
+    {
+      name: 'Harris Scarfe Home',
+      url: 'https://www.harrisscarfe.com.au/home',
+      catalogs: [
+        'https://www.harrisscarfe.com.au/home/sale',
+        'https://www.harrisscarfe.com.au/sale-offers',
+      ],
+    },
+    {
+      name: 'MyHouse Australia',
+      url: 'https://myhouse.com.au/',
+      catalogs: ['https://myhouse.com.au/collections/sale'],
+    },
+    {
+      name: 'House Australia',
+      url: 'https://www.house.com.au/',
+      catalogs: ['https://www.house.com.au/sale'],
+    },
+    {
+      name: 'Flower Power Garden Centre',
+      url: 'https://www.flowerpower.com.au/',
+      catalogs: ['https://www.flowerpower.com.au/sale'],
+    },
+    {
+      name: 'Domayne Home',
+      url: 'https://www.domayne.com.au/',
+      catalogs: ['https://www.domayne.com.au/sale'],
+    },
+    {
+      name: 'Nick Scali Furniture',
+      url: 'https://www.nickscali.com.au/',
+      catalogs: ['https://www.nickscali.com.au/sale'],
+    },
+  ];
+
+  await Promise.all(
+    homeGardenStores.map((store) =>
+      prisma.store.upsert({
+        where: { url: store.url },
+        update: {
+          name: store.name,
+          suburb: 'Sydney',
+          city: 'Sydney',
+          country: 'Australia',
+          catalogs: store.catalogs,
+          categoryId: homeGardenCategory.id,
+        },
+        create: {
+          name: store.name,
+          suburb: 'Sydney',
+          city: 'Sydney',
+          country: 'Australia',
+          catalogs: store.catalogs,
+          categoryId: homeGardenCategory.id,
           url: store.url,
           ownerId: user.id,
         },
@@ -2500,6 +2858,76 @@ async function main() {
       city: 'Sydney',
       catalogs: [],
     },
+    {
+      name: 'Paramount Coffee Project',
+      url: 'https://www.paramountcoffeeproject.com.au/',
+      suburb: 'Surry Hills',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Single O Surry Hills',
+      url: 'https://singleo.com.au/pages/surry-hills',
+      suburb: 'Surry Hills',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Edition Roasters',
+      url: 'https://editionroasters.com/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Proud Mary Cafe Melbourne',
+      url: 'https://www.proudmarycoffee.com.au/pages/proud-mary-cafe',
+      suburb: 'Collingwood',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Seven Seeds Carlton',
+      url: 'https://sevenseeds.com.au/',
+      suburb: 'Carlton',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Higher Ground Melbourne',
+      url: 'https://highergroundmelbourne.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'ST. ALi South Melbourne',
+      url: 'https://stali.com.au/pages/south-melbourne',
+      suburb: 'South Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Industry Beans Fitzroy',
+      url: 'https://industrybeans.com/pages/fitzroy',
+      suburb: 'Fitzroy',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Market Lane Coffee',
+      url: 'https://marketlane.com.au/pages/locations',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Ten Square Cafe',
+      url: 'https://www.tensquarecafe.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
   ];
 
   await Promise.all(
@@ -2664,6 +3092,188 @@ async function main() {
       city: 'Sydney',
       catalogs: ['https://zephyrbarsydney.com/whats-on/'],
     },
+    {
+      name: 'Bennelong',
+      url: 'https://www.bennelong.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Attica Melbourne',
+      url: 'https://www.attica.com.au/',
+      suburb: 'Ripponlea',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Flower Drum Melbourne',
+      url: 'https://flowerdrum.melbourne/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Gimlet Melbourne',
+      url: 'https://gimlet.melbourne/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Toko Sydney',
+      url: 'https://tokorestaurant.com/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Haco Sydney',
+      url: 'https://hacosydney.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Saké Restaurant & Bar',
+      url: 'https://sakerestaurant.com.au/',
+      suburb: 'The Rocks',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Nobu Sydney',
+      url: 'https://www.crownhotels.com.au/sydney/restaurants-bars/nobu',
+      suburb: 'Barangaroo',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Oborozuki',
+      url: 'https://www.oborozuki.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Shoya Melbourne',
+      url: 'https://shoya.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Warabi Melbourne',
+      url: 'https://www.warabimelbourne.com/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Doju Melbourne',
+      url: 'https://www.doju.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'RuYi Modern Chinese',
+      url: 'https://www.ruyi.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Akaiito Melbourne',
+      url: 'https://akaiitorestaurant.com.au/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'GogiMatcha',
+      url: 'https://www.gogimatcha.com/',
+      suburb: 'Melbourne',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Han Le Miel',
+      url: 'https://www.hanlemiel.com/',
+      suburb: 'Carlton',
+      city: 'Melbourne',
+      catalogs: [],
+    },
+    {
+      name: 'Allta Sydney',
+      url: 'https://alltasydney.com.au/',
+      suburb: 'Surry Hills',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Funda Sydney',
+      url: 'https://funda.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'SOUL Dining',
+      url: 'https://www.souldining.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Kuro Bar & Dining',
+      url: 'https://kurosydney.com/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://kurosydney.com/whats-on/'],
+    },
+    {
+      name: 'Besuto Omakase',
+      url: 'https://besutosydney.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Sokyo Sydney',
+      url: 'https://www.star.com.au/sydney/eat-and-drink/signature-dining/sokyo',
+      suburb: 'Pyrmont',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Saint Peter',
+      url: 'https://www.saintpeter.com.au/',
+      suburb: 'Paddington',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Sixpenny',
+      url: 'https://sixpenny.com.au/',
+      suburb: 'Stanmore',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Firedoor',
+      url: 'https://firedoor.com.au/',
+      suburb: 'Surry Hills',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: 'Restaurant Hubert',
+      url: 'https://swillhouse.com/venues/restaurant-hubert',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: [],
+    },
   ];
 
   await Promise.all(
@@ -2685,6 +3295,192 @@ async function main() {
           country: 'Australia',
           catalogs: store.catalogs,
           categoryId: diningBeveragesCategory.id,
+          url: store.url,
+          ownerId: user.id,
+        },
+      })
+    )
+  );
+
+  const musicGearsCategory = categories.find((category) => category.name === 'Music Gears');
+
+  if (!musicGearsCategory) {
+    throw new Error('Music Gears category was not created');
+  }
+
+  const additionalMusicGearStores = [
+    {
+      name: 'Artist Guitars Australia',
+      url: 'https://www.artistguitars.com.au/',
+      catalogs: [
+        'https://www.artistguitars.com.au/collections/sale',
+        'https://www.artistguitars.com.au/collections/clearance',
+      ],
+    },
+    {
+      name: 'Sky Music Australia',
+      url: 'https://skymusic.com.au/',
+      catalogs: ['https://skymusic.com.au/collections/sale'],
+    },
+    {
+      name: 'Better Music',
+      url: 'https://www.bettermusic.com.au/',
+      catalogs: ['https://www.bettermusic.com.au/sale'],
+    },
+    {
+      name: 'Derringers Music',
+      url: 'https://derringers.com.au/',
+      catalogs: ['https://derringers.com.au/sale'],
+    },
+    {
+      name: 'Store DJ',
+      url: 'https://www.storedj.com.au/',
+      catalogs: ['https://www.storedj.com.au/sale'],
+    },
+    {
+      name: 'DJ City Australia',
+      url: 'https://djcity.com.au/',
+      catalogs: ['https://djcity.com.au/sale'],
+    },
+    {
+      name: 'Kosmic Sound',
+      url: 'https://www.kosmic.com.au/',
+      catalogs: ['https://www.kosmic.com.au/sale'],
+    },
+    {
+      name: 'Sound Centre',
+      url: 'https://www.soundcentre.com.au/',
+      catalogs: ['https://www.soundcentre.com.au/collections/sale'],
+    },
+    {
+      name: 'Mega Music',
+      url: 'https://www.megamusiconline.com.au/',
+      catalogs: ['https://www.megamusiconline.com.au/sale'],
+    },
+    {
+      name: 'Bass Centre',
+      url: 'https://www.basscentre.com.au/',
+      catalogs: ['https://www.basscentre.com.au/collections/sale'],
+    },
+    {
+      name: 'Music Junction',
+      url: 'https://www.musicjunction.com.au/',
+      catalogs: ['https://www.musicjunction.com.au/sale'],
+    },
+    {
+      name: 'World of Music',
+      url: 'https://www.worldofmusic.com.au/',
+      catalogs: ['https://www.worldofmusic.com.au/sale'],
+    },
+  ];
+
+  await Promise.all(
+    additionalMusicGearStores.map((store) =>
+      prisma.store.upsert({
+        where: { url: store.url },
+        update: {
+          name: store.name,
+          suburb: 'Sydney',
+          city: 'Sydney',
+          country: 'Australia',
+          catalogs: store.catalogs,
+          categoryId: musicGearsCategory.id,
+        },
+        create: {
+          name: store.name,
+          suburb: 'Sydney',
+          city: 'Sydney',
+          country: 'Australia',
+          catalogs: store.catalogs,
+          categoryId: musicGearsCategory.id,
+          url: store.url,
+          ownerId: user.id,
+        },
+      })
+    )
+  );
+
+  const financialServicesCategory = categories.find((category) => category.name === 'Financial & Services');
+
+  if (!financialServicesCategory) {
+    throw new Error('Financial & Services category was not created');
+  }
+
+  const financialServiceStores = [
+    {
+      name: 'Marketpal.AI',
+      url: 'https://marketpal.ai',
+      catalogs: ['https://marketpal.ai/pricing'],
+    },
+    {
+      name: 'Finder Australia',
+      url: 'https://www.finder.com.au/',
+      catalogs: [
+        'https://www.finder.com.au/deals',
+        'https://www.finder.com.au/coupon-codes',
+      ],
+    },
+    {
+      name: 'Canstar Australia',
+      url: 'https://www.canstar.com.au/',
+      catalogs: ['https://www.canstar.com.au/savings-accounts/bonus-savings-accounts/'],
+    },
+    {
+      name: 'Mozo Australia',
+      url: 'https://mozo.com.au/',
+      catalogs: ['https://mozo.com.au/special-offers'],
+    },
+    {
+      name: 'Compare the Market Australia',
+      url: 'https://www.comparethemarket.com.au/',
+      catalogs: ['https://www.comparethemarket.com.au/special-offers/'],
+    },
+    {
+      name: 'iSelect Australia',
+      url: 'https://www.iselect.com.au/',
+      catalogs: ['https://www.iselect.com.au/offers/'],
+    },
+    {
+      name: 'RateCity Australia',
+      url: 'https://www.ratecity.com.au/',
+      catalogs: ['https://www.ratecity.com.au/savings-accounts/bonus-savings-accounts'],
+    },
+    {
+      name: 'InfoChoice Australia',
+      url: 'https://www.infochoice.com.au/',
+      catalogs: ['https://www.infochoice.com.au/savings-accounts/bonus-saver'],
+    },
+    {
+      name: 'Savvy Australia',
+      url: 'https://www.savvy.com.au/',
+      catalogs: ['https://www.savvy.com.au/personal-loans/'],
+    },
+    {
+      name: 'MoneyMe',
+      url: 'https://moneyme.com.au/',
+      catalogs: ['https://moneyme.com.au/personal-loans/'],
+    },
+  ];
+
+  await Promise.all(
+    financialServiceStores.map((store) =>
+      prisma.store.upsert({
+        where: { url: store.url },
+        update: {
+          name: store.name,
+          suburb: 'Sydney',
+          city: 'Sydney',
+          country: 'Australia',
+          catalogs: store.catalogs,
+          categoryId: financialServicesCategory.id,
+        },
+        create: {
+          name: store.name,
+          suburb: 'Sydney',
+          city: 'Sydney',
+          country: 'Australia',
+          catalogs: store.catalogs,
+          categoryId: financialServicesCategory.id,
           url: store.url,
           ownerId: user.id,
         },

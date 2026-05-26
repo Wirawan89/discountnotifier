@@ -11,12 +11,13 @@ type FilterBarProps = {
   isLoadingLocation: boolean;
   smartFetchLoading: boolean;
   smartFetchResult: string | null;
+  showFetchActions?: boolean;
   onSearchChange: (value: string) => void;
   onCountryChange: (value: string) => void;
   onSuburbChange: (value: string) => void;
   onSortChange: (value: string) => void;
   onToggleFavoritesOnly: () => void;
-  onGetUserLocation: () => void;
+  onGetUserLocation: () => void | Promise<void>;
   onToggleNearMe: () => void;
   onSmartFetch: () => void;
   onShowExisting: () => void;
@@ -35,6 +36,7 @@ export default function FilterBar({
   isLoadingLocation,
   smartFetchLoading,
   smartFetchResult,
+  showFetchActions = true,
   onSearchChange,
   onCountryChange,
   onSuburbChange,
@@ -144,37 +146,39 @@ export default function FilterBar({
           </button>
         )}
 
-        <div className="mb-4 flex items-center gap-4">
-          <button
-            type="button"
-            onClick={onSmartFetch}
-            disabled={smartFetchLoading}
-            className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-gradient-to-r from-green-600 to-green-400 text-white shadow hover:from-green-700 hover:to-green-500 ${smartFetchLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            {smartFetchLoading ? "Smart Fetching..." : "Smart Fetch Discounts"}
-          </button>
+        {showFetchActions && (
+          <div className="mb-4 flex items-center gap-4">
+            <button
+              type="button"
+              onClick={onSmartFetch}
+              disabled={smartFetchLoading}
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-gradient-to-r from-green-600 to-green-400 text-white shadow hover:from-green-700 hover:to-green-500 ${smartFetchLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              {smartFetchLoading ? "Smart Fetching..." : "Smart Fetch Discounts"}
+            </button>
 
-          <button
-            type="button"
-            onClick={onShowExisting}
-            disabled={smartFetchLoading}
-            className="px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-400 text-white shadow hover:from-blue-700 hover:to-blue-500"
-          >
-            Show Existing
-          </button>
+            <button
+              type="button"
+              onClick={onShowExisting}
+              disabled={smartFetchLoading}
+              className="px-4 py-2 rounded-lg font-medium transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-400 text-white shadow hover:from-blue-700 hover:to-blue-500"
+            >
+              Show Existing
+            </button>
 
-          {smartFetchResult && (
-            <span className={`ml-2 text-sm font-medium px-3 py-1 rounded shadow animate-fadeIn ${
-              smartFetchResult.includes("Success") || smartFetchResult.includes("stores") || smartFetchResult.includes("existing")
-                ? "text-green-700 bg-green-100"
-                : smartFetchResult.includes("limits") || smartFetchResult.includes("credit")
-                  ? "text-yellow-700 bg-yellow-100"
-                  : "text-red-700 bg-red-100"
-            }`}>
-              {smartFetchResult}
-            </span>
-          )}
-        </div>
+            {smartFetchResult && (
+              <span className={`ml-2 text-sm font-medium px-3 py-1 rounded shadow animate-fadeIn ${
+                smartFetchResult.includes("Success") || smartFetchResult.includes("stores") || smartFetchResult.includes("existing")
+                  ? "text-green-700 bg-green-100"
+                  : smartFetchResult.includes("limits") || smartFetchResult.includes("credit")
+                    ? "text-yellow-700 bg-yellow-100"
+                    : "text-red-700 bg-red-100"
+              }`}>
+                {smartFetchResult}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

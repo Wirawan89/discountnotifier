@@ -7,6 +7,7 @@ export type Store = {
   id: number;
   name: string;
   suburb: string;
+  city?: string | null;
   country?: string | null;
   url: string;
   background?: string | null;
@@ -21,6 +22,7 @@ export type Discount = {
   startDate: string;
   endDate: string;
   image?: string | null;
+  coupon?: string | null;
 };
 
 export type ShareData = {

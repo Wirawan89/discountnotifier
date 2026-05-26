@@ -12,6 +12,7 @@ import type { Category, Discount, ShareData, Store } from '@/components/discount
 
 const DEFAULT_COUNTRY = "Australia";
 const BASE_COUNTRIES = [DEFAULT_COUNTRY, "New Zealand", "United States"];
+const DEFAULT_LOCATION_SUBURB = "Sydney";
 
 function normalizeCountry(country?: string | null) {
   if (!country || country.trim().length === 0) {
@@ -29,6 +30,10 @@ function normalizeCountry(country?: string | null) {
   }
 
   return normalized;
+}
+
+function normalizeLocation(value?: string | null) {
+  return value?.trim().toLowerCase() || "";
 }
 
 export default function Home() {
@@ -52,6 +57,16 @@ export default function Home() {
   const [shareData, setShareData] = useState<ShareData | null>(null);
   const [smartFetchLoading, setSmartFetchLoading] = useState(false);
   const [smartFetchResult, setSmartFetchResult] = useState<string | null>(null);
+  const [isSaleNearbyMode, setIsSaleNearbyMode] = useState(false);
+  const [saleNearbyLoading, setSaleNearbyLoading] = useState(false);
+  const [saleNearbyLocation, setSaleNearbyLocation] = useState("");
+  const [saleNearbySuburbs, setSaleNearbySuburbs] = useState<string[]>([]);
+  const [saleNearbyResult, setSaleNearbyResult] = useState<string | null>(null);
+  const [isOffersNearbyMode, setIsOffersNearbyMode] = useState(false);
+  const [offersNearbyLoading, setOffersNearbyLoading] = useState(false);
+  const [offersNearbyLocation, setOffersNearbyLocation] = useState("");
+  const [offersNearbySuburbs, setOffersNearbySuburbs] = useState<string[]>([]);
+  const [offersNearbyResult, setOffersNearbyResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/categories')
@@ -112,15 +127,42 @@ export default function Home() {
 
     if (searchTerm) {
       const normalizedSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter((store) =>
-        store.name.toLowerCase().includes(normalizedSearch) ||
-        store.suburb.toLowerCase().includes(normalizedSearch) ||
-        normalizeCountry(store.country).toLowerCase().includes(normalizedSearch)
-      );
+      filtered = filtered.filter((store) => {
+        const storeDiscounts = discounts.filter((discount) => discount.storeId === store.id);
+        const highSignalText = [
+          store.name,
+          store.url,
+          ...storeDiscounts.flatMap((discount) => [
+            discount.title,
+            discount.description || "",
+            discount.coupon || "",
+          ]),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const searchableText = [
+          highSignalText,
+          store.suburb,
+          store.city,
+          selectedCategory?.name,
+          normalizeCountry(store.country),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return (normalizedSearch.length <= 2 ? highSignalText : searchableText).includes(normalizedSearch);
+      });
     }
 
     if (showNearMe && userLocation) {
-      filtered = filtered.filter((store) => store.suburb === userLocation);
+      const normalizedLocation = normalizeLocation(userLocation);
+      filtered = filtered.filter(
+        (store) =>
+          normalizeLocation(store.suburb) === normalizedLocation ||
+          normalizeLocation(store.city) === normalizedLocation
+      );
     }
 
     if (showFavoritesOnly) {
@@ -146,7 +188,7 @@ export default function Home() {
     });
 
     return filtered;
-  }, [discounts, favorites, searchTerm, selectedCountry, selectedSuburb, showFavoritesOnly, showNearMe, sortBy, stores, userLocation]);
+  }, [discounts, favorites, searchTerm, selectedCategory?.name, selectedCountry, selectedSuburb, showFavoritesOnly, showNearMe, sortBy, stores, userLocation]);
 
   const storesToShow = showAllStores ? filteredStores : filteredStores.slice(0, 8);
 
@@ -156,6 +198,14 @@ export default function Home() {
     setSearchTerm("");
     setShowNearMe(false);
     setShowFavoritesOnly(false);
+    setIsSaleNearbyMode(false);
+    setSaleNearbyLocation("");
+    setSaleNearbySuburbs([]);
+    setSaleNearbyResult(null);
+    setIsOffersNearbyMode(false);
+    setOffersNearbyLocation("");
+    setOffersNearbySuburbs([]);
+    setOffersNearbyResult(null);
   };
 
   const handleCountryChange = (country: string) => {
@@ -163,6 +213,25 @@ export default function Home() {
     setSelectedSuburb("");
     setShowAllStores(false);
     setShowNearMe(false);
+    setIsSaleNearbyMode(false);
+    setSaleNearbyLocation("");
+    setSaleNearbySuburbs([]);
+    setSaleNearbyResult(null);
+    setIsOffersNearbyMode(false);
+    setOffersNearbyLocation("");
+    setOffersNearbySuburbs([]);
+    setOffersNearbyResult(null);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+
+    if (value.trim()) {
+      setSelectedSuburb("");
+      setShowNearMe(false);
+      setShowFavoritesOnly(false);
+      setShowAllStores(false);
+    }
   };
 
   const refreshCategoryData = (category: Category) => {
@@ -197,22 +266,185 @@ export default function Home() {
     refreshCategoryData(category);
   };
 
-  const getUserLocation = () => {
+  const handleNearMe = async () => {
+    const location = await getUserLocation();
+
+    if (!location) {
+      return;
+    }
+
+    setSelectedSuburb("");
+    setShowNearMe(true);
+    setShowAllStores(false);
+  };
+
+  const getUserLocation = (): Promise<string | null> => {
     setIsLoadingLocation(true);
-    if (navigator.geolocation) {
+
+    const askForSuburb = () => {
+      const suburb = window.prompt(
+        "Enter your suburb so nearby search can match stores in your exact area and 1-2 nearby suburbs.",
+        userLocation || DEFAULT_LOCATION_SUBURB
+      )?.trim();
+
+      if (suburb) {
+        setUserLocation(suburb);
+        return suburb;
+      }
+
+      return null;
+    };
+
+    if (!navigator.geolocation) {
+      const suburb = askForSuburb();
+      setIsLoadingLocation(false);
+      return Promise.resolve(suburb);
+    }
+
+    return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         () => {
-          const mockSuburbs = ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide"];
-          setUserLocation(mockSuburbs[Math.floor(Math.random() * mockSuburbs.length)]);
+          const suburb = askForSuburb();
           setIsLoadingLocation(false);
+          resolve(suburb);
         },
         (error) => {
           console.log("Location access denied:", error);
+          const suburb = askForSuburb();
           setIsLoadingLocation(false);
+          resolve(suburb);
         }
       );
-    } else {
-      setIsLoadingLocation(false);
+    });
+  };
+
+  const handleSaleNearby = async () => {
+    let location = userLocation;
+
+    if (!location) {
+      const shouldEnableLocation = window.confirm(
+        "SaleNearby needs location based filtering. Turn on location based search now?"
+      );
+
+      if (!shouldEnableLocation) {
+        return;
+      }
+
+      location = await getUserLocation() || "";
+    }
+
+    if (!location) {
+      setSaleNearbyResult("SaleNearby needs a suburb before it can search nearby offers.");
+      return;
+    }
+
+    setSelectedCategory(null);
+    setIsSaleNearbyMode(true);
+    setIsOffersNearbyMode(false);
+    setSaleNearbyLoading(true);
+    setLoadingStores(true);
+    setLoadingDiscounts(true);
+    setSaleNearbyLocation(location);
+    setSaleNearbyResult("Loading SaleNearby offers...");
+    setSelectedSuburb("");
+    setSearchTerm("");
+    setShowAllStores(false);
+    setShowNearMe(false);
+    setShowFavoritesOnly(false);
+
+    try {
+      const response = await fetch(
+        `/api/stores/sale-nearby?location=${encodeURIComponent(location)}&country=${encodeURIComponent(selectedCountry)}`
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        setStores([]);
+        setDiscounts([]);
+        setSaleNearbySuburbs([]);
+        setSaleNearbyResult(data.error || "Failed to fetch SaleNearby stores");
+        return;
+      }
+
+      const nearbyStores = Array.isArray(data.stores) ? data.stores : [];
+      setStores(nearbyStores);
+      setDiscounts(nearbyStores.flatMap((store: Store & { discounts?: Discount[] }) => store.discounts || []));
+      setSaleNearbySuburbs(Array.isArray(data.suburbs) ? data.suburbs : []);
+      setSaleNearbyResult(data.message || `Loaded ${nearbyStores.length} SaleNearby stores`);
+    } catch (_error) {
+      setStores([]);
+      setDiscounts([]);
+      setSaleNearbySuburbs([]);
+      setSaleNearbyResult("Network error loading SaleNearby stores");
+    } finally {
+      setSaleNearbyLoading(false);
+      setLoadingStores(false);
+      setLoadingDiscounts(false);
+    }
+  };
+
+  const handleOffersNearby = async () => {
+    let location = userLocation;
+
+    if (!location) {
+      const shouldEnableLocation = window.confirm(
+        "OffersNearby needs location based filtering. Turn on location based search now?"
+      );
+
+      if (!shouldEnableLocation) {
+        return;
+      }
+
+      location = await getUserLocation() || "";
+    }
+
+    if (!location) {
+      setOffersNearbyResult("OffersNearby needs a suburb before it can search brunch, dining and beverage offers.");
+      return;
+    }
+
+    setSelectedCategory(null);
+    setIsSaleNearbyMode(false);
+    setIsOffersNearbyMode(true);
+    setOffersNearbyLoading(true);
+    setLoadingStores(true);
+    setLoadingDiscounts(true);
+    setOffersNearbyLocation(location);
+    setOffersNearbyResult("Loading OffersNearby dining offers...");
+    setSelectedSuburb("");
+    setSearchTerm("");
+    setShowAllStores(false);
+    setShowNearMe(false);
+    setShowFavoritesOnly(false);
+
+    try {
+      const response = await fetch(
+        `/api/stores/offers-nearby?location=${encodeURIComponent(location)}&country=${encodeURIComponent(selectedCountry)}`
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        setStores([]);
+        setDiscounts([]);
+        setOffersNearbySuburbs([]);
+        setOffersNearbyResult(data.error || "Failed to fetch OffersNearby stores");
+        return;
+      }
+
+      const nearbyStores = Array.isArray(data.stores) ? data.stores : [];
+      setStores(nearbyStores);
+      setDiscounts(nearbyStores.flatMap((store: Store & { discounts?: Discount[] }) => store.discounts || []));
+      setOffersNearbySuburbs(Array.isArray(data.suburbs) ? data.suburbs : []);
+      setOffersNearbyResult(data.message || `Loaded ${nearbyStores.length} OffersNearby stores`);
+    } catch (_error) {
+      setStores([]);
+      setDiscounts([]);
+      setOffersNearbySuburbs([]);
+      setOffersNearbyResult("Network error loading OffersNearby stores");
+    } finally {
+      setOffersNearbyLoading(false);
+      setLoadingStores(false);
+      setLoadingDiscounts(false);
     }
   };
 
@@ -302,15 +534,33 @@ export default function Home() {
           categories={sortedCategories}
           loading={loadingCategories}
           selectedCategory={selectedCategory}
+          isSaleNearbyActive={isSaleNearbyMode}
+          isSaleNearbyLoading={saleNearbyLoading}
+          isOffersNearbyActive={isOffersNearbyMode}
+          isOffersNearbyLoading={offersNearbyLoading}
           onSelectCategory={handleCategoryClick}
+          onSaleNearby={handleSaleNearby}
+          onOffersNearby={handleOffersNearby}
         />
 
         <main className="w-2/3 p-6 overflow-y-auto">
-          {selectedCategory ? (
+          {selectedCategory || isSaleNearbyMode || isOffersNearbyMode ? (
             <div>
               <h2 className="text-2xl font-bold mb-4 text-gray-800">
-                {selectedCategory.name}
+                {isSaleNearbyMode ? "SaleNearby" : isOffersNearbyMode ? "OffersNearby" : selectedCategory?.name}
               </h2>
+              {isSaleNearbyMode && (
+                <p className="mb-4 text-sm text-gray-600">
+                  Showing current offers near {saleNearbyLocation || "your location"}
+                  {saleNearbySuburbs.length > 0 && ` (${saleNearbySuburbs.join(", ")})`}.
+                </p>
+              )}
+              {isOffersNearbyMode && (
+                <p className="mb-4 text-sm text-gray-600">
+                  Showing brunch, dining and beverage offers near {offersNearbyLocation || "your location"}
+                  {offersNearbySuburbs.length > 0 && ` (${offersNearbySuburbs.join(", ")})`}.
+                </p>
+              )}
 
               <FilterBar
                 searchTerm={searchTerm}
@@ -324,13 +574,20 @@ export default function Home() {
                 userLocation={userLocation}
                 isLoadingLocation={isLoadingLocation}
                 smartFetchLoading={smartFetchLoading}
-                smartFetchResult={smartFetchResult}
-                onSearchChange={setSearchTerm}
+                smartFetchResult={
+                  isSaleNearbyMode
+                    ? saleNearbyResult
+                    : isOffersNearbyMode
+                      ? offersNearbyResult
+                      : smartFetchResult
+                }
+                showFetchActions={!isSaleNearbyMode && !isOffersNearbyMode}
+                onSearchChange={handleSearchChange}
                 onCountryChange={handleCountryChange}
                 onSuburbChange={setSelectedSuburb}
                 onSortChange={setSortBy}
                 onToggleFavoritesOnly={() => setShowFavoritesOnly((value) => !value)}
-                onGetUserLocation={getUserLocation}
+                onGetUserLocation={handleNearMe}
                 onToggleNearMe={() => setShowNearMe((value) => !value)}
                 onSmartFetch={handleSmartFetch}
                 onShowExisting={handleShowExisting}
@@ -350,7 +607,9 @@ export default function Home() {
                   Showing {storesToShow.length} of {filteredStores.length} stores
                   {` in ${selectedCountry}`}
                   {searchTerm && ` for "${searchTerm}"`}
-                  {showNearMe && userLocation && ` near ${userLocation}`}
+                  {isSaleNearbyMode && saleNearbyLocation && ` near ${saleNearbyLocation}`}
+                  {isOffersNearbyMode && offersNearbyLocation && ` near ${offersNearbyLocation}`}
+                  {!isSaleNearbyMode && !isOffersNearbyMode && showNearMe && userLocation && ` near ${userLocation}`}
                   {showFavoritesOnly && ` (${favorites.length} favorites)`}
                 </div>
               )}

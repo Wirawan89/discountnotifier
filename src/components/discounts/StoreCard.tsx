@@ -23,6 +23,15 @@ export default function StoreCard({
 }: StoreCardProps) {
   const storeDiscounts = discounts.filter((discount) => discount.storeId === store.id);
   const storeUrl = /^https?:\/\//i.test(store.url) ? store.url : `https://${store.url}`;
+  const getOfferPeriodText = (discount: Discount) => {
+    const isLiveVerifiedOffer = /offer wording found on the store website/i.test(discount.description || "");
+
+    if (isLiveVerifiedOffer) {
+      return "Happening Now...";
+    }
+
+    return `${new Date(discount.startDate).toLocaleDateString()} - ${new Date(discount.endDate).toLocaleDateString()}`;
+  };
 
   const handleVisitStore = (event: MouseEvent<HTMLAnchorElement>) => {
     const openedWindow = window.open(storeUrl, "_blank");
@@ -38,7 +47,10 @@ export default function StoreCard({
       className="bg-white rounded-lg shadow-md p-4 border border-gray-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative"
       style={{
         animationDelay: `${index * 100}ms`,
-        animation: "fadeInUp 0.6s ease-out forwards",
+        animationName: "fadeInUp",
+        animationDuration: "0.6s",
+        animationTimingFunction: "ease-out",
+        animationFillMode: "forwards",
       }}
     >
       <button
@@ -93,18 +105,11 @@ export default function StoreCard({
                 <p className="text-xs text-gray-400">No offer at the moment</p>
               ) : (
                 storeDiscounts.slice(0, 2).map((discount) => (
-                  <div key={discount.id} className="bg-red-50 p-2 rounded border-l-2 border-red-400 hover:bg-red-100 transition-colors duration-200 relative">
+                  <div key={discount.id} className="bg-red-50 p-2 rounded border-l-2 border-red-400 hover:bg-red-100 transition-colors duration-200">
                     <div className="font-medium text-red-700 text-xs">{discount.title}</div>
                     <div className="text-xs text-gray-600 mt-1">
-                      {new Date(discount.startDate).toLocaleDateString()} - {new Date(discount.endDate).toLocaleDateString()}
+                      {getOfferPeriodText(discount)}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onShare(store, discount)}
-                      className="absolute top-1 right-1 text-xs bg-green-600 text-white px-1 rounded hover:bg-green-700 transition-colors"
-                    >
-                      📤
-                    </button>
                   </div>
                 ))
               )}

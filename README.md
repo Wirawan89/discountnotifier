@@ -1,242 +1,296 @@
-# 🛍️ DiscountNotifier
+# DiscountNotifier
 
-A smart discount discovery platform that uses AI to find and notify users about the best deals and discounts in their area. Built with Next.js, TypeScript, and Prisma.
+DiscountNotifier is a Next.js app for tracking current discounts and store offers by category. It combines seeded store data, AI-assisted smart fetching, and a website verifier that checks store pages for real offer wording before displaying an offer.
 
-## ✨ Features
+The app is currently focused on Australia by default, with support for country filtering in the UI.
 
-### 🎯 Core Features
-- **AI-Powered Discount Discovery**: Uses multiple AI APIs (OpenRouter, Gemini, Claude) to find real-time discounts
-- **Smart Categorization**: Organizes discounts by categories (Food, Electronics, Fashion, etc.)
-- **Location-Based Search**: Find discounts in specific suburbs and cities
-- **User Authentication**: Secure signup/login with email/password and social login options
+## What It Does
 
-### 📧 Email Notifications
-- **Welcome Emails**: Personalized welcome messages for new users
-- **Discount Alerts**: Real-time email notifications for new discounts in favorite categories
-- **Multi-Provider Support**: Gmail, SendGrid, and Resend integration
-- **Personalized Content**: User-specific discount recommendations
+- Shows discount categories in a sidebar.
+- Lists stores for the selected category.
+- Displays current offers per store.
+- Shows "No offer at the moment" when the verifier cannot confirm an active offer.
+- Lets users search, filter by country/suburb, sort, favorite stores, and open store links in a new tab.
+- Provides `SaleNearby`, which shows current-offer stores from the selected suburb plus 1-2 nearby suburbs.
+- Uses store URLs to render small store logos beside store names.
+- Supports smart fetching with OpenRouter, Gemini, and Claude routes.
+- Caches category fetches with `CategoryFetchLog` to avoid repeated fetches within the configured refresh period.
+- Supports login, signup, forgot password, reset password, admin pages, notifications, and user preferences.
 
-### 🔔 Notification System
-- **In-App Notifications**: Real-time notification bell with unread counts
-- **Email Notifications**: Configurable email alerts
-- **Push Notifications**: Browser-based push notifications
-- **Customizable Preferences**: Control notification frequency and categories
+## Tech Stack
 
-### 🎨 User Experience
-- **Modern UI**: Clean, responsive design with Tailwind CSS
-- **Favorite System**: Save and track favorite stores and discounts
-- **Search & Filter**: Advanced search and filtering capabilities
-- **Mobile Responsive**: Optimized for all device sizes
+- Next.js 15
+- React 19
+- TypeScript
+- Tailwind CSS
+- Prisma ORM
+- PostgreSQL
+- NextAuth
+- Nodemailer
+- OpenRouter, Gemini, and Claude API integrations
 
-## 🚀 Tech Stack
+## Main Entry Points
 
-- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes, Prisma ORM
-- **Database**: PostgreSQL
-- **Authentication**: NextAuth.js with multiple providers
-- **Email**: Nodemailer with multi-provider support
-- **AI Integration**: OpenRouter, Google Gemini, Anthropic Claude
-- **Deployment**: Vercel-ready
+- App home page: `src/app/page.tsx`
+- Auth pages: `src/app/auth/*`
+- Admin pages: `src/app/admin/*`
+- Main discount UI components: `src/components/discounts/*`
+- Store cards and logo tile:
+  - `src/components/discounts/StoreCard.tsx`
+  - `src/components/discounts/StoreLogo.tsx`
+- Smart fetch API: `src/app/api/discounts/smart-fetch/route.ts`
+- Existing discounts API: `src/app/api/discounts/existing/route.ts`
+- Store API: `src/app/api/stores/route.ts`
+- SaleNearby API: `src/app/api/stores/sale-nearby/route.ts`
+- Category API: `src/app/api/categories/route.ts`
+- Offer verifier: `src/lib/offer-verifier.ts`
+- Fetch parsing and validation: `src/lib/discount-fetcher.ts`
+- Reverify script: `scripts/reverify-current-offers.ts`
+- Seed data: `prisma/seed.ts`
+- Database schema: `prisma/schema.prisma`
 
-## 📋 Prerequisites
+## Verifier Profiles
 
-- Node.js 18+ 
-- PostgreSQL database
-- Email provider account (Gmail, SendGrid, or Resend)
-- AI API keys (OpenRouter, Gemini, Claude)
+The verifier has three profiles:
 
-## 🛠️ Installation
+- `retail`: default general checker.
+- `retailShop`: stricter shop checker for retail categories. It checks the homepage, configured catalog URLs, and same-site discovered offer links.
+- `dining`: dining-specific checker for wording such as `happy hour`, `special offer`, and `special deal`.
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/yourusername/discountnotifier.git
-cd discountnotifier
+Current category-to-profile mapping lives in:
+
+- `src/lib/discount-fetcher.ts`
+- `scripts/reverify-current-offers.ts`
+
+Most retail categories use `retailShop`. `Dining & Beverages` and `Caffe & Brunch` use `dining`.
+
+## Database
+
+The app uses PostgreSQL with Prisma. Key models include:
+
+- `User`
+- `Store`
+- `Category`
+- `Discount`
+- `Showcase`
+- `Notification`
+- `UserPreference`
+- `CategoryFetchLog`
+- `ApiConfiguration`
+- `TokenUsageLog`
+- `AiPerformanceLog`
+
+The `Store` model contains:
+
+- `id`
+- `name`
+- `url`
+- `suburb`
+- `city`
+- `country`
+- `contact`
+- `address`
+- `description`
+- `catalogs`
+- `categoryId`
+- `ownerId`
+- `background`
+- `createdAt`
+- `updatedAt`
+
+## Environment Variables
+
+Create `.env` in the project root. Do not commit it.
+
+```env
+DATABASE_URL="postgresql://username:password@localhost:5432/discountnotifier"
+
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="replace-with-a-long-random-secret"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+EMAIL_FROM="noreply@discountnotifier.com"
+
+# Gmail SMTP, optional but needed for password reset emails unless another SMTP setup is added.
+GMAIL_USER="your-email@gmail.com"
+GMAIL_PASS="your-gmail-app-password"
+
+# AI providers, optional depending on which smart fetch routes you use.
+OPENROUTER_API_KEY=""
+GEMINI_API_KEY=""
+ANTHROPIC_API_KEY=""
+
+# Admin seed helper, optional.
+ADMIN_EMAIL="admin@discountnotifier.com"
+ADMIN_PASSWORD="change-this-password"
 ```
 
-### 2. Install Dependencies
+## Setup
+
+Install dependencies:
+
 ```bash
 npm install
 ```
 
-### 3. Environment Setup
-Create a `.env.local` file in the root directory:
+Generate Prisma client:
 
-```env
-# Database
-DATABASE_URL="postgresql://username:password@localhost:5432/discountnotifier"
-
-# NextAuth
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-nextauth-secret
-
-# Email Configuration
-EMAIL_FROM=noreply@discountnotifier.com
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-
-# Choose one email provider:
-# Gmail
-GMAIL_USER=your-email@gmail.com
-GMAIL_PASS=your-app-password
-
-# OR SendGrid
-SENDGRID_API_KEY=your-sendgrid-api-key
-
-# OR Resend
-RESEND_API_KEY=your-resend-api-key
-
-# AI API Keys
-OPENROUTER_API_KEY=your-openrouter-api-key
-GEMINI_API_KEY=your-gemini-api-key
-ANTHROPIC_API_KEY=your-anthropic-api-key
-
-# Social Login (Optional)
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-APPLE_ID=your-apple-id
-APPLE_SECRET=your-apple-secret
-```
-
-### 4. Database Setup
 ```bash
-# Generate Prisma client
-npx prisma generate
-
-# Run database migrations
-npx prisma migrate dev
-
-# Seed the database (optional)
-npx prisma db seed
+npm run db:generate
 ```
 
-### 5. Start Development Server
+Run migrations:
+
+```bash
+npm run db:migrate
+```
+
+Seed categories, stores, API config, and test data:
+
+```bash
+npm run db:seed
+```
+
+Start the dev server:
+
 ```bash
 npm run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000) to see the application.
+Open:
 
-## 📧 Email Setup
+```text
+http://localhost:3000
+```
 
-The application supports multiple email providers for sending notifications. See [EMAIL_SETUP.md](./EMAIL_SETUP.md) for detailed setup instructions.
+To use another port:
 
-### Quick Email Test
+```bash
+npm run dev -- -p 3003
+```
+
+## Useful Scripts
+
+```bash
+npm run dev
+npm run build
+npm run start
+npm run db:generate
+npm run db:migrate
+npm run db:seed
+npm run offers:reverify
+npm run cleanup
+npm run cleanup:monthly
+npm run cleanup:monthly:dry-run
+npm run cleanup:full
+npm run cleanup:dry-run
+npm run test:email
+npm run init:admin
+```
+
+## Reverify Current Offers
+
+Recheck all stores/offers:
+
+```bash
+npm run offers:reverify
+```
+
+Recheck one category and create generic current offers when the verifier confirms offer wording:
+
+```bash
+npm run offers:reverify -- --category="Books & Magazines" --create-missing
+```
+
+Recheck one store:
+
+```bash
+npm run offers:reverify -- --store="Booktopia Australia" --create-missing
+```
+
+## Cleanup
+
+Remove expired discounts:
+
+```bash
+npm run cleanup:monthly
+```
+
+Preview monthly cleanup without deleting:
+
+```bash
+npm run cleanup:monthly:dry-run
+```
+
+## Email And Password Reset
+
+Forgot password and reset password routes are implemented under:
+
+- `src/app/api/auth/forgot-password/route.ts`
+- `src/app/api/auth/reset-password/route.ts`
+- `src/app/auth/forgot-password/page.tsx`
+- `src/app/auth/reset-password/page.tsx`
+
+For Gmail SMTP, use a Gmail App Password, not the normal Gmail account password.
+
+Test email:
+
 ```bash
 npm run test:email your-email@example.com
 ```
 
-## 🗄️ Database Schema
+## Project Structure
 
-The application uses PostgreSQL with the following main tables:
+```text
+prisma/
+  schema.prisma
+  seed.ts
 
-- **Users**: User accounts and authentication
-- **UserPreferences**: Email settings, favorite categories, notification preferences
-- **Categories**: Discount categories (Food, Electronics, etc.)
-- **Stores**: Store information and details
-- **Discounts**: Discount details, dates, and descriptions
-- **Notifications**: In-app notification system
+scripts/
+  reverify-current-offers.ts
+  monthly-cleanup.js
+  cleanup-database.js
+  cleanup-expired.js
+  init-admin.js
+  setup-cron.js
+  test-email.js
 
-## 🔧 Available Scripts
+src/app/
+  page.tsx
+  admin/
+  api/
+  auth/
+  profile/
 
-```bash
-# Development
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
+src/components/discounts/
+  CategorySidebar.tsx
+  FilterBar.tsx
+  StoreGrid.tsx
+  StoreCard.tsx
+  StoreLogo.tsx
+  ShareModal.tsx
 
-# Database
-npm run db:generate  # Generate Prisma client
-npm run db:migrate   # Run migrations
-npm run db:seed      # Seed database
-
-# Email
-npm run test:email   # Test email configuration
-
-# Cleanup
-npm run cleanup      # Clean expired data
-npm run cleanup:full # Full database cleanup
+src/lib/
+  discount-fetcher.ts
+  offer-verifier.ts
+  email.ts
+  prisma.ts
 ```
 
-## 🎯 Usage
+## Development Notes
 
-### For Users
-1. **Sign Up**: Create an account with email or social login
-2. **Set Preferences**: Choose favorite categories and notification settings
-3. **Browse Discounts**: Explore discounts by category or location
-4. **Get Notified**: Receive email alerts for new discounts
+- Store logos are rendered from each store URL using a favicon service. They are not currently stored in the database.
+- `Store.url` is unique, so seed data uses category-specific URLs when the same brand appears in multiple categories.
+- `catalogs` stores offer/catalog URLs used by the verifier.
+- `CategoryFetchLog` prevents repeated smart fetches within the category refresh window.
+- The default country in the UI is Australia.
+- The app uses date-based current offers: offers are current when `endDate` has not passed.
+- `SaleNearby` uses existing `Store.suburb`, `Store.city`, and `Store.country` fields. Add latitude/longitude later if true distance-based search is needed.
 
-### For Developers
-1. **API Integration**: Use the discount fetching APIs to add new AI providers
-2. **Email Customization**: Modify email templates in `src/lib/email.ts`
-3. **UI Customization**: Update components in `src/components/`
-4. **Database**: Add new fields using Prisma migrations
+## GitHub
 
-## 🔌 API Endpoints
+Repository:
 
-### Authentication
-- `POST /api/auth/signup` - User registration
-- `POST /api/auth/signin` - User login
-- `GET /api/auth/session` - Get current session
-
-### Discounts
-- `POST /api/openrouter/fetch-discounts` - Fetch discounts via OpenRouter
-- `POST /api/gemini/fetch-discounts` - Fetch discounts via Gemini
-- `POST /api/claude/fetch-discounts` - Fetch discounts via Claude
-- `GET /api/discounts` - Get all discounts
-- `GET /api/stores` - Get all stores
-
-### User Preferences
-- `GET /api/preferences` - Get user preferences
-- `PUT /api/preferences` - Update user preferences
-- `GET /api/notifications` - Get user notifications
-
-## 🚀 Deployment
-
-### Vercel (Recommended)
-1. Connect your GitHub repository to Vercel
-2. Add environment variables in Vercel dashboard
-3. Deploy automatically on push to main branch
-
-### Manual Deployment
-```bash
-npm run build
-npm run start
+```text
+https://github.com/Wirawan89/discountnotifier.git
 ```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Documentation**: Check the [EMAIL_SETUP.md](./EMAIL_SETUP.md) for email configuration
-- **Issues**: Report bugs and feature requests via GitHub Issues
-- **Discussions**: Use GitHub Discussions for questions and ideas
-
-## 🙏 Acknowledgments
-
-- Next.js team for the amazing framework
-- Prisma team for the excellent ORM
-- Tailwind CSS for the utility-first CSS framework
-- All AI providers for their APIs
-
-## 📊 Project Status
-
-- ✅ Core functionality implemented
-- ✅ Email notifications working
-- ✅ User authentication complete
-- ✅ AI integration functional
-- ✅ Database schema optimized
-- 🔄 Continuous improvements
-
----
-
-**Made with ❤️ for discount hunters everywhere**
