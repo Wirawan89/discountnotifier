@@ -1,28 +1,116 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
+const LIVE_VERIFIED_OFFER_TEXT = "Offer wording found on the store website";
 
 // GET: Get user notifications
 export async function GET() {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const notifications = await prisma.notification.findMany({
-      where: {
-        userId: parseInt(session.user.id)
-      },
-      orderBy: {
-        createdAt: "desc"
-      }
-    });
+    const userId = parseInt(session.user.id);
+    const now = new Date();
 
-    return NextResponse.json(notifications);
+    const [notifications, preferences] = await Promise.all([
+      prisma.notification.findMany({
+        where: {
+          userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+      prisma.userPreference.findUnique({
+        where: {
+          userId,
+        },
+        select: {
+          favoriteCategories: true,
+        },
+      }),
+    ]);
+
+    const interestCategoryIds = preferences?.favoriteCategories ?? [];
+    const verifiedOfferWhere = {
+      endDate: {
+        gte: now,
+      },
+      description: {
+        contains: LIVE_VERIFIED_OFFER_TEXT,
+        mode: "insensitive" as const,
+      },
+    };
+
+    const [interestCategories, verifiedStores, verifiedOfferCount] = interestCategoryIds.length
+      ? await Promise.all([
+          prisma.category.findMany({
+            where: {
+              id: {
+                in: interestCategoryIds,
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+            },
+            orderBy: {
+              name: "asc",
+            },
+          }),
+          prisma.store.findMany({
+            where: {
+              categoryId: {
+                in: interestCategoryIds,
+              },
+              discounts: {
+                some: verifiedOfferWhere,
+              },
+            },
+            include: {
+              category: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              discounts: {
+                where: verifiedOfferWhere,
+                orderBy: {
+                  updatedAt: "desc",
+                },
+                take: 2,
+              },
+            },
+            orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+            take: 25,
+          }),
+          prisma.store.count({
+            where: {
+              categoryId: {
+                in: interestCategoryIds,
+              },
+              discounts: {
+                some: verifiedOfferWhere,
+              },
+            },
+          }),
+        ])
+      : [[], [], 0];
+
+    return NextResponse.json({
+      notifications,
+      verifiedStores,
+      verifiedOfferCount,
+      interestCategoryIds,
+      interestCategoryNames: interestCategories.map((category) => category.name),
+    });
   } catch (error) {
     console.error("Error fetching notifications:", error);
     return NextResponse.json({ error: "Failed to fetch notifications" }, { status: 500 });
@@ -32,7 +120,7 @@ export async function GET() {
 // POST: Mark notification as read
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

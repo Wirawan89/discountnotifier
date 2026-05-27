@@ -529,7 +529,7 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50">
       <HotDealsTicker />
 
-      <div className="flex h-[calc(100vh-120px)]">
+      <div className="flex min-h-[calc(100vh-120px)] flex-col lg:h-[calc(100vh-120px)] lg:flex-row">
         <CategorySidebar
           categories={sortedCategories}
           loading={loadingCategories}
@@ -543,10 +543,10 @@ export default function Home() {
           onOffersNearby={handleOffersNearby}
         />
 
-        <main className="w-2/3 p-6 overflow-y-auto">
+        <main className="w-full flex-1 overflow-y-auto p-4 sm:p-5 lg:w-2/3 lg:p-6">
           {selectedCategory || isSaleNearbyMode || isOffersNearbyMode ? (
             <div>
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">
+              <h2 className="mb-4 text-xl font-bold text-gray-800 sm:text-2xl">
                 {isSaleNearbyMode ? "SaleNearby" : isOffersNearbyMode ? "OffersNearby" : selectedCategory?.name}
               </h2>
               {isSaleNearbyMode && (
@@ -630,7 +630,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setShowAllStores((value) => !value)}
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 transform hover:scale-105"
+                    className="w-full rounded-lg bg-blue-600 px-6 py-2 text-white transition-all duration-200 hover:bg-blue-700 sm:w-auto sm:transform sm:hover:scale-105"
                   >
                     {showAllStores
                       ? "Show Less (8 stores)"

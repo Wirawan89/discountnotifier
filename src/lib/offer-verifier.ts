@@ -7,7 +7,7 @@ export type OfferVerificationResult = {
 
 export type OfferVerifierOptions = {
   country?: string;
-  profile?: "retail" | "retailShop" | "dining" | "entertainment" | "services";
+  profile?: "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel";
 };
 
 type UrlToCheck = {
@@ -49,6 +49,13 @@ const OFFER_KEYWORDS = [
   "promotion",
   "outlet",
   "save",
+  "view offer",
+  "view offers",
+  "view deal",
+  "view deals",
+  "bundle and save",
+  "package",
+  "packages",
 ];
 
 const OFFER_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
@@ -56,6 +63,7 @@ const OFFER_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: "$ off", pattern: /\$\s*\d+(?:\.\d{1,2})?\s*off\b/i },
   { label: "$ bonus", pattern: /\$\s*\d+(?:\.\d{1,2})?\s*(?:bonus|cashback|cash\s*back|credit)\b/i },
   { label: "% off", pattern: /\b\d+(?:\.\d+)?%\s*off\b/i },
+  { label: "save $$$", pattern: /\bsave\s*\${2,}\b/i },
   { label: "half price", pattern: /\b(?:1\/2|half)\s*price\b/i },
   { label: "off rrp", pattern: /\boff\s+rrp\b/i },
   { label: "money saving", pattern: /\bsave\s+\d+(?:\.\d+)?\s*(?:dollars|aud)\b/i },
@@ -64,6 +72,10 @@ const OFFER_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: "free trial", pattern: /\bfree\s+(?:trial|month|membership|consultation|quote)\b/i },
   { label: "fee waiver", pattern: /\b(?:no|zero|waived?)\s+(?:monthly|annual|joining|setup|account)?\s*fees?\b/i },
   { label: "markdown price", pattern: /\boriginally\s+(?:aud\s*)?\$\s*\d+(?:\.\d{1,2})?/i },
+  { label: "buy one get one free", pattern: /\b(?:buy\s+one\s+get\s+one\s+free|bogo|2\s*for\s*1|two\s+for\s+one)\b/i },
+  { label: "free night", pattern: /\b(?:free\s+night|night\s+free|stay\s+\d+\s+(?:nights?\s+)?pay\s+\d+)\b/i },
+  { label: "package deal", pattern: /\b(?:package\s+deal|holiday\s+package|travel\s+package|flight\s*\+\s*hotel)\b/i },
+  { label: "bundle and save", pattern: /\bbundle\s*(?:&|and)\s*save\b/i },
 ];
 
 const STRONG_OFFER_KEYWORDS = new Set([
@@ -150,6 +162,37 @@ const SERVICES_STRONG_OFFER_KEYWORDS = new Set([
   "money saving",
 ]);
 
+const TRAVEL_STRONG_OFFER_KEYWORDS = new Set([
+  "discount",
+  "discounts",
+  "sale",
+  "deal",
+  "deals",
+  "special offer",
+  "special offers",
+  "special deal",
+  "special deals",
+  "limited time offer",
+  "limited time offers",
+  "offer",
+  "offers",
+  "promo",
+  "promotion",
+  "save $",
+  "save $$$",
+  "$ off",
+  "% off",
+  "money saving",
+  "view offer",
+  "view offers",
+  "view deal",
+  "view deals",
+  "bundle and save",
+  "buy one get one free",
+  "free night",
+  "package deal",
+]);
+
 const RETAIL_SHOP_STRONG_OFFER_KEYWORDS = new Set([
   "sale",
   "on sale",
@@ -180,10 +223,10 @@ const RETAIL_SHOP_STRONG_OFFER_KEYWORDS = new Set([
 ]);
 
 const NON_OFFER_PAGE_PATTERN =
-  /(linktr\.ee|dealer|distributor|find[-\s]?store|store[-\s]?locator|service[-\s]?center|support|warranty|manual|faq|help[-\s]?centre|help[-\s]?center|ordering|news|press|article|terms|conditions|privacy|policy)/i;
+  /(linktr\.ee|dealer|distributor|find[-\s]?store|store[-\s]?locator|\/(?:pages\/)?stores?(?:[/?#]|$)|store[-\s]?locations?|service[-\s]?center|support|warranty|manual|faq|help[-\s]?centre|help[-\s]?center|ordering|news|press|article|terms|conditions|privacy|policy)/i;
 
 const OFFER_LINK_PATTERN =
-  /(discount|sale|clearance|clerance|clearence|deal|hot[-\s]?deal|happy[-\s]?hour|eofy|end[-\s]?of[-\s]?financial[-\s]?year|special|special[-\s]?price|limited[-\s]?time[-\s]?offer|offer|promo|promotion|outlet|catalogue|catalog|what'?s[-\s]?on|markdown|reduced|save|\$\s*\d+\s*off|\d+%\s*off|(?:1\/2|half)\s*price|off\s+rrp)/i;
+  /(discount|sale|clearance|clerance|clearence|deal|hot[-\s]?deal|happy[-\s]?hour|eofy|end[-\s]?of[-\s]?financial[-\s]?year|special|special[-\s]?price|limited[-\s]?time[-\s]?offer|offer|view[-\s]?(?:offer|offers|deal|deals)|promo|promotion|outlet|catalogue|catalog|what'?s[-\s]?on|markdown|reduced|save|package|flight\s*\+\s*hotel|buy\s+one\s+get\s+one|bogo|2\s*for\s*1|free[-\s]?night|\$\s*\d+\s*off|\d+%\s*off|(?:1\/2|half)\s*price|off\s+rrp)/i;
 
 const COMMON_OFFER_PATHS = [
   "/sale",
@@ -255,10 +298,40 @@ const SERVICES_OFFER_PATHS = [
   "/plans",
 ];
 
+const TRAVEL_OFFER_PATHS = [
+  "/deals",
+  "/offers",
+  "/special-offers",
+  "/special-deals",
+  "/promotions",
+  "/promo",
+  "/sale",
+  "/packages",
+  "/holiday-packages",
+  "/hotel-deals",
+  "/travel-deals",
+  "/holidays/deal",
+  "/holidays/deals",
+  "/holidays/deals/fly-stay-deals",
+  "/holidays/special-offers",
+  "/a/en/offers",
+  "/a/en/deals",
+  "/en/offers",
+  "/en/deals",
+];
+
 const MAX_DISCOVERED_LINKS = 8;
 const MAX_PAGES_TO_CHECK = 32;
 const MAX_DISCOVERY_DEPTH = 3;
 const REQUEST_TIMEOUT_MS = 8000;
+const MIN_RETAIL_SHOP_PERCENT_OFF = 25;
+const AU_LOCAL_RETAIL_HOSTS = new Set([
+  "incu.com",
+  "parlourx.com",
+  "abovethecloudsstore.com",
+  "thearchiveau.com",
+  "sorrythanksiloveyou.com",
+]);
 
 function normalizeUrl(url: string): string | null {
   try {
@@ -323,6 +396,29 @@ function hasExplicitSavingsInUrl(url: string): boolean {
   return OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(urlText));
 }
 
+function getPercentOffValues(text: string): number[] {
+  const percentages: number[] = [];
+  const percentOffPattern = /\b(\d+(?:\.\d+)?)%\s*off\b/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = percentOffPattern.exec(text)) !== null) {
+    percentages.push(Number(match[1]));
+  }
+
+  return percentages.filter((percentage) => Number.isFinite(percentage));
+}
+
+function hasRetailShopExplicitSavings(pageText: string): boolean {
+  const hasNonPercentageSavings = OFFER_TEXT_PATTERNS.some(
+    ({ label, pattern }) => label !== "% off" && pattern.test(pageText)
+  );
+  const hasMeaningfulPercentOff = getPercentOffValues(pageText).some(
+    (percentage) => percentage >= MIN_RETAIL_SHOP_PERCENT_OFF
+  );
+
+  return hasNonPercentageSavings || hasMeaningfulPercentOff;
+}
+
 function getSiteKey(url: string): string | null {
   try {
     const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
@@ -349,6 +445,33 @@ function isSameSiteUrl(candidateUrl: string, pageUrl: string): boolean {
   const pageSite = getSiteKey(pageUrl);
 
   return Boolean(candidateSite && pageSite && candidateSite === pageSite);
+}
+
+function hasAustralianTravelUrl(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  const path = url.pathname.toLowerCase();
+  const search = url.search.toLowerCase();
+
+  return (
+    path.startsWith("/au") ||
+    path.includes("/en-au") ||
+    path.includes("/en_au") ||
+    path.includes("/en/au") ||
+    path.includes("/english/au") ||
+    path.includes("/australia") ||
+    path.includes("/holidays") ||
+    search.includes("country=au") ||
+    search.includes("pos=au") ||
+    search.includes("region=au") ||
+    ((host === "qantas.com" || host === "www.qantas.com") &&
+      /^\/(?:holidays|au|au-en|au\/)/i.test(path))
+  );
+}
+
+function hasAustralianLocalRetailHost(url: URL): boolean {
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+
+  return AU_LOCAL_RETAIL_HOSTS.has(host);
 }
 
 function hasTrustedOfferIntentInUrl(url: string): boolean {
@@ -449,6 +572,58 @@ function hasServicesOfferEvidence(matchedKeywords: string[], url: string, pageTe
   return hasServiceOfferPattern || (hasStrongServiceKeyword && hasOfferIntentUrl);
 }
 
+function hasTravelExplicitSavings(pageText: string): boolean {
+  const hasStrongTravelPattern = OFFER_TEXT_PATTERNS.some(({ label, pattern }) => {
+    if (label === "% off") {
+      return false;
+    }
+
+    return TRAVEL_STRONG_OFFER_KEYWORDS.has(label) && pattern.test(pageText);
+  });
+  const hasMeaningfulPercentOff = getPercentOffValues(pageText).some(
+    (percentage) => percentage >= MIN_RETAIL_SHOP_PERCENT_OFF
+  );
+
+  return hasStrongTravelPattern || hasMeaningfulPercentOff;
+}
+
+function hasTravelOfferEvidence(matchedKeywords: string[], url: string, pageText = ""): boolean {
+  if (NON_OFFER_PAGE_PATTERN.test(url)) {
+    return false;
+  }
+
+  const hasTravelKeyword = matchedKeywords.some((keyword) =>
+    TRAVEL_STRONG_OFFER_KEYWORDS.has(keyword)
+  );
+  const hasExplicitSavings = hasTravelExplicitSavings(pageText);
+  const hasOfferIntentUrl =
+    /(deals?|offers?|special[-\s]?(?:deals?|offers?)|promo|promotion|sale|packages?|holiday|flight[-\s+]?hotel|hotel[-\s]?deals?|travel[-\s]?deals?)/i.test(
+      url
+    );
+  const hasSpecialTravelOfferText =
+    /\b(?:discounts?\s+and\s+special\s+offers?|special\s+(?:deals?|offers?)|exclusive\s+(?:deals?|offers?)|travel\s+deals?|hotel\s+deals?|holiday\s+deals?)\b/i.test(
+      pageText
+    );
+  const hasPackageDealText =
+    /\b(?:flight\s*\+\s*hotel|holiday\s+package|travel\s+package|package\s+deal|hotel\s+deals?|accommodation\s+deals?)\b/i.test(
+      pageText
+    );
+  const newsletterOnlySignal =
+    /\b(?:newsletter|newsletters|subscribe|sign\s+up|first\s+to\s+hear)\b[\s\S]{0,180}\b(?:exclusive\s+)?(?:offers?|deals?)\b/i.test(
+      pageText
+    );
+
+  if (!hasTravelKeyword) {
+    return false;
+  }
+
+  if (newsletterOnlySignal && !hasExplicitSavings && !hasOfferIntentUrl && !hasSpecialTravelOfferText) {
+    return false;
+  }
+
+  return hasExplicitSavings || hasOfferIntentUrl || hasSpecialTravelOfferText || hasPackageDealText;
+}
+
 function normalizeCountry(country?: string): string | undefined {
   if (!country || country.trim().length === 0) {
     return undefined;
@@ -489,7 +664,8 @@ function isCountryRelevant(url: string, country?: string, pageText = ""): boolea
         host.endsWith(".com.au") ||
         host.endsWith(".net.au") ||
         host.startsWith("au.") ||
-        path.startsWith("/au") ||
+        hasAustralianLocalRetailHost(parsedUrl) ||
+        hasAustralianTravelUrl(parsedUrl) ||
         /\b(australia|australian|aud|nsw|vic|qld|wa|sa|tas|act|nt)\b/i.test(text)
       );
     }
@@ -538,12 +714,16 @@ function hasStrongOfferEvidence(
     return hasServicesOfferEvidence(matchedKeywords, url, pageText);
   }
 
+  if (profile === "travel") {
+    return hasTravelOfferEvidence(matchedKeywords, url, pageText);
+  }
+
   if (profile === "retailShop") {
     if (NON_OFFER_PAGE_PATTERN.test(url)) {
       return false;
     }
 
-    const hasExplicitSavings = OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(pageText));
+    const hasExplicitSavings = hasRetailShopExplicitSavings(pageText);
     const hasRetailKeyword = matchedKeywords.some((keyword) => RETAIL_SHOP_STRONG_OFFER_KEYWORDS.has(keyword));
     const hasCatalogueOfferEvidence = hasRetailShopCatalogueEvidence(url, pageText);
 
@@ -653,9 +833,11 @@ function addCommonOfferUrls(
           ? ENTERTAINMENT_OFFER_PATHS
           : profile === "services"
             ? SERVICES_OFFER_PATHS
-            : profile === "retailShop"
-              ? []
-              : COMMON_OFFER_PATHS;
+            : profile === "travel"
+              ? TRAVEL_OFFER_PATHS
+              : profile === "retailShop"
+                ? []
+                : COMMON_OFFER_PATHS;
 
     commonPaths.forEach((path) => {
       urls.add(new URL(path, base.origin).toString());

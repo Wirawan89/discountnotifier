@@ -817,6 +817,51 @@ async function main() {
       catalogs: ['https://www.hairhouse.com.au/sale'],
     },
     {
+      name: 'Ascent Luxury Cosmetics Cabramatta',
+      url: 'https://ascentluxurycosmetics.com.au/',
+      suburb: 'Cabramatta',
+      city: 'Sydney',
+      catalogs: ['https://ascentluxurycosmetics.com.au/collections/sale'],
+    },
+    {
+      name: 'La Milas Perfume NSW',
+      url: 'https://lamilas.com.au/',
+      suburb: 'Parramatta',
+      city: 'Sydney',
+      catalogs: ['https://lamilas.com.au/'],
+    },
+    {
+      name: 'Libertine Parfumerie Chatswood',
+      url: 'https://www.libertineparfumerie.com.au/',
+      suburb: 'Chatswood',
+      city: 'Sydney',
+      catalogs: [
+        'https://www.libertineparfumerie.com.au/pages/gifts-with-purchase',
+        'https://www.libertineparfumerie.com.au/collections/outlet',
+      ],
+    },
+    {
+      name: 'Crew Cosmetics Parramatta',
+      url: 'https://crewcosmetics.com.au/',
+      suburb: 'Parramatta',
+      city: 'Sydney',
+      catalogs: ['https://crewcosmetics.com.au/prices-drop'],
+    },
+    {
+      name: 'Kimarie Boutique Cabramatta',
+      url: 'https://kimarieboutique.com.au/',
+      suburb: 'Cabramatta',
+      city: 'Sydney',
+      catalogs: [],
+    },
+    {
+      name: "L'Occitane Sydney",
+      url: 'https://au.loccitane.com/special-offers',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://au.loccitane.com/special-offers'],
+    },
+    {
       name: 'SkincareStore Australia',
       url: 'https://www.skincarestore.com.au/',
       suburb: 'Perth',
@@ -898,6 +943,90 @@ async function main() {
       url: 'https://justjeans.jgl.com.au/',
       catalogs: ['https://justjeans.jgl.com.au/shop/en/justjeans/sale'],
     },
+    {
+      name: 'Parlour X Paddington',
+      url: 'https://www.parlourx.com/',
+      suburb: 'Paddington',
+      city: 'Sydney',
+      catalogs: ['https://www.parlourx.com/collections/sale'],
+    },
+    {
+      name: 'Incu Sydney',
+      url: 'https://www.incu.com/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://www.incu.com/collections/sale'],
+    },
+    {
+      name: 'The Standard Store Sydney',
+      url: 'https://thestandardstore.com.au/',
+      suburb: 'Surry Hills',
+      city: 'Sydney',
+      catalogs: ['https://thestandardstore.com.au/collections/sale'],
+    },
+    {
+      name: 'The Archive AU Sydney',
+      url: 'https://thearchiveau.com/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://thearchiveau.com/collections/sale'],
+    },
+    {
+      name: 'Above The Clouds Sydney',
+      url: 'https://www.abovethecloudsstore.com/',
+      suburb: 'Surry Hills',
+      city: 'Sydney',
+      catalogs: ['https://www.abovethecloudsstore.com/collections/sale'],
+    },
+    {
+      name: 'Maple Store Newtown',
+      url: 'https://maplestore.com.au/',
+      suburb: 'Newtown',
+      city: 'Sydney',
+      catalogs: ['https://maplestore.com.au/collections/sale'],
+    },
+    {
+      name: 'ROAR Cronulla',
+      url: 'https://weareroar.com.au/',
+      suburb: 'Cronulla',
+      city: 'Sydney',
+      catalogs: ['https://weareroar.com.au/collections/sale'],
+    },
+    {
+      name: 'Riada Concept Woollahra',
+      url: 'https://riadaconcept.com/',
+      suburb: 'Woollahra',
+      city: 'Sydney',
+      catalogs: ['https://riadaconcept.com/collections/all-sale/sale'],
+    },
+    {
+      name: 'Filomena Natale Sydney',
+      url: 'https://www.filomenanatale.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://www.filomenanatale.com.au/clearance'],
+    },
+    {
+      name: 'Rodeo Drive Boutique Merrylands',
+      url: 'https://rodeodriveboutique.com.au/',
+      suburb: 'Merrylands',
+      city: 'Sydney',
+      catalogs: ['https://rodeodriveboutique.com.au/product-category/sale/'],
+    },
+    {
+      name: 'Kookla Boutique',
+      url: 'https://kooklaboutique.com.au/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://kooklaboutique.com.au/collections/sale'],
+    },
+    {
+      name: 'Sorry Thanks I Love You Sydney',
+      url: 'https://sorrythanksiloveyou.com/',
+      suburb: 'Sydney',
+      city: 'Sydney',
+      catalogs: ['https://sorrythanksiloveyou.com/collections/sale'],
+    },
   ];
 
   await Promise.all(
@@ -906,16 +1035,16 @@ async function main() {
         where: { url: store.url },
         update: {
           name: store.name,
-          suburb: 'Sydney',
-          city: 'Sydney',
+          suburb: store.suburb || 'Sydney',
+          city: store.city || 'Sydney',
           country: 'Australia',
           catalogs: store.catalogs,
           categoryId: clothingFashionsCategory.id,
         },
         create: {
           name: store.name,
-          suburb: 'Sydney',
-          city: 'Sydney',
+          suburb: store.suburb || 'Sydney',
+          city: store.city || 'Sydney',
           country: 'Australia',
           catalogs: store.catalogs,
           categoryId: clothingFashionsCategory.id,
@@ -959,6 +1088,17 @@ async function main() {
       catalogs: [
         'https://www.thegoodguys.com.au/deals',
         'https://www.thegoodguys.com.au/sale',
+      ],
+    },
+    {
+      name: 'Harvey Norman',
+      url: 'https://www.harveynorman.com.au/',
+      catalogs: [
+        'https://www.harveynorman.com.au/clearance/',
+        'https://www.harveynorman.com.au/clearance?p=1',
+        'https://www.harveynorman.com.au/clearance?p=2',
+        'https://www.harveynorman.com.au/sale',
+        'https://www.harveynorman.com.au/hot-deals?intcmp=HNAU-7225',
       ],
     },
     {
@@ -1047,6 +1187,14 @@ async function main() {
       catalogs: ['https://www.kmart.com.au/category/baby/baby-sale/'],
     },
     {
+      name: 'Baby Bunting',
+      url: 'https://babybunting.com.au',
+      catalogs: [
+        'https://www.babybunting.com.au/sale',
+        'https://www.babybunting.com.au/sale/clearance',
+      ],
+    },
+    {
       name: 'Baby Warehouse Australia',
       url: 'https://babywarehouse.com.au/',
       catalogs: ['https://babywarehouse.com.au/collections/frontpage'],
@@ -1070,6 +1218,59 @@ async function main() {
       name: 'The Memo',
       url: 'https://thememo.com.au/',
       catalogs: ['https://thememo.com.au/collections/sale'],
+    },
+    {
+      name: 'Bubs n Grubs',
+      url: 'https://www.bubsngrubs.com.au/',
+      catalogs: [],
+    },
+    {
+      name: 'Baby Direct Australia',
+      url: 'https://baby-direct.com.au/',
+      catalogs: ['https://baby-direct.com.au/pages/sale'],
+    },
+    {
+      name: 'Purebaby',
+      url: 'https://purebaby.com.au/',
+      catalogs: ['https://purebaby.com.au/collections/sale'],
+    },
+    {
+      name: 'Bonds Baby & Kids',
+      url: 'https://www.bonds.com.au/baby.html',
+      catalogs: ['https://www.bonds.com.au/sale.html'],
+    },
+    {
+      name: 'Toymate',
+      url: 'https://toymate.com.au/',
+      catalogs: ['https://toymate.com.au/sale'],
+    },
+    {
+      name: 'Kidstuff',
+      url: 'https://www.kidstuff.com.au/',
+      catalogs: ['https://www.kidstuff.com.au/collections/sale'],
+    },
+    {
+      name: 'Cotton On Kids',
+      url: 'https://cottonon.com/AU/kids/',
+      catalogs: ['https://cottonon.com/AU/kids/kids-sale/'],
+    },
+    {
+      name: 'Best&Less Baby & Kids',
+      url: 'https://www.bestandless.com.au/collections/baby',
+      catalogs: [
+        'https://www.bestandless.com.au/collections/baby-sale',
+        'https://www.bestandless.com.au/collections/kids-sale',
+      ],
+    },
+    {
+      name: 'Seed Heritage Child',
+      url: 'https://www.seedheritage.com/au/child/',
+      catalogs: ['https://www.seedheritage.com/au/sale/child/'],
+    },
+    {
+      name: 'Huxbaby',
+      url: 'https://www.huxbaby.com/',
+      catalogs: ['https://www.huxbaby.com/collections/sale'],
     },
   ];
 
@@ -1469,7 +1670,11 @@ async function main() {
     {
       name: 'Qantas Holidays',
       url: 'https://www.qantas.com/holidays',
-      catalogs: ['https://www.qantas.com/holidays/offers'],
+      catalogs: [
+        'https://www.qantas.com/holidays/deal',
+        'https://www.qantas.com/holidays/deals/fly-stay-deals',
+        'https://www.qantas.com/holidays/special-offers',
+      ],
     },
     {
       name: 'Luxury Escapes Australia',
@@ -1498,13 +1703,81 @@ async function main() {
     },
     {
       name: 'Accor Australia Offers',
-      url: 'https://all.accor.com/australia/index.en.shtml',
-      catalogs: ['https://all.accor.com/australia/offers.en.shtml'],
+      url: 'https://all.accor.com/a/en.html',
+      catalogs: [
+        'https://all.accor.com/a/en.html',
+        'https://all.accor.com/a/en/offers.html',
+      ],
     },
     {
       name: 'IHG Australia Offers',
       url: 'https://www.ihg.com/hotels/gb/en/reservation',
       catalogs: ['https://www.ihg.com/content/gb/en/deals/hotel-offers'],
+    },
+    {
+      name: 'Singapore Airlines Australia',
+      url: 'https://www.singaporeair.com/en_UK/au/home',
+      catalogs: ['https://www.singaporeair.com/en_UK/au/plan-travel/promotions/'],
+    },
+    {
+      name: 'Emirates Australia',
+      url: 'https://www.emirates.com/au/english/',
+      catalogs: ['https://www.emirates.com/au/english/special-offers/'],
+    },
+    {
+      name: 'Qatar Airways Australia',
+      url: 'https://www.qatarairways.com/en-au/homepage.html',
+      catalogs: ['https://www.qatarairways.com/en-au/offers.html'],
+    },
+    {
+      name: 'Etihad Airways Australia',
+      url: 'https://www.etihad.com/en-au/',
+      catalogs: ['https://www.etihad.com/en-au/deals'],
+    },
+    {
+      name: 'Cathay Pacific Australia',
+      url: 'https://www.cathaypacific.com/cx/en_AU.html',
+      catalogs: ['https://www.cathaypacific.com/cx/en_AU/offers.html'],
+    },
+    {
+      name: 'Thai Airways Australia',
+      url: 'https://www.thaiairways.com/en_AU/index.page',
+      catalogs: ['https://www.thaiairways.com/en_AU/plan/travel_information/promotions.page'],
+    },
+    {
+      name: 'Air New Zealand Australia',
+      url: 'https://www.airnewzealand.com.au/',
+      catalogs: ['https://www.airnewzealand.com.au/special-deals'],
+    },
+    {
+      name: 'United Airlines Australia',
+      url: 'https://www.united.com/en/au',
+      catalogs: ['https://www.united.com/en/au/fly/deals.html'],
+    },
+    {
+      name: 'Korean Air Australia',
+      url: 'https://www.koreanair.com/au/en',
+      catalogs: ['https://www.koreanair.com/au/en/promotion/list'],
+    },
+    {
+      name: 'Japan Airlines Australia',
+      url: 'https://www.jal.co.jp/ar/en/',
+      catalogs: ['https://www.jal.co.jp/ar/en/deals/'],
+    },
+    {
+      name: 'ANA Australia',
+      url: 'https://www.ana.co.jp/en/au/',
+      catalogs: ['https://www.ana.co.jp/en/au/promotions/'],
+    },
+    {
+      name: 'Malaysia Airlines Australia',
+      url: 'https://www.malaysiaairlines.com/au/en.html',
+      catalogs: ['https://www.malaysiaairlines.com/au/en/deals.html'],
+    },
+    {
+      name: 'Fiji Airways Australia',
+      url: 'https://www.fijiairways.com/en-au/',
+      catalogs: ['https://www.fijiairways.com/en-au/flights/special-offers'],
     },
   ];
 

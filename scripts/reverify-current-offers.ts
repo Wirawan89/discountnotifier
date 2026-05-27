@@ -6,7 +6,7 @@ const categoryName = process.argv.find((arg) => arg.startsWith("--category="))?.
 const storeName = process.argv.find((arg) => arg.startsWith("--store="))?.split("=")[1];
 const createMissingOffers = process.argv.includes("--create-missing");
 
-function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "dining" | "entertainment" | "services" {
+function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel" {
   if (categoryName === "Dining & Beverages" || categoryName === "Caffe & Brunch") {
     return "dining";
   }
@@ -17,6 +17,10 @@ function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "d
 
   if (categoryName === "Financial & Services") {
     return "services";
+  }
+
+  if (categoryName === "Travel & Accommodation") {
+    return "travel";
   }
 
   if (
@@ -31,7 +35,6 @@ function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "d
     categoryName === "Luxury & Designer" ||
     categoryName === "HIFI Audio & Speakers" ||
     categoryName === "Gifts & Flowers" ||
-    categoryName === "Travel & Accommodation" ||
     categoryName === "Vitamins & Supplements" ||
     categoryName === "Office & Stationery" ||
     categoryName === "Games" ||
@@ -54,7 +57,7 @@ function createGenericOffer(
   storeName: string,
   matchedUrl: string,
   matchedKeywords: string[],
-  profile: "retail" | "retailShop" | "dining" | "entertainment" | "services"
+  profile: "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel"
 ) {
   const startDate = new Date();
   const endDate = new Date(startDate);
@@ -72,6 +75,8 @@ function createGenericOffer(
           ? `${storeName} Event Deals and Offers`
         : profile === "services"
           ? `${storeName} Service Deals and Offers`
+        : profile === "travel"
+          ? `${storeName} Travel Deals and Special Offers`
         : hasEofyOffer
           ? `${storeName} EOFY Deals`
           : `${storeName} current sale and offers`,

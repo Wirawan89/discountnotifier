@@ -98,12 +98,12 @@ export default function SignIn() {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{" "}
-            <Link
-              href="/auth/signup"
+            <a
+              href="/auth/account-type"
               className="font-medium text-blue-600 hover:text-blue-500"
             >
               create a new account
-            </Link>
+            </a>
           </p>
         </div>
 
@@ -244,6 +244,7 @@ export default function SignIn() {
             </button>
           </div>
         </form>
+
       </div>
     </div>
   );

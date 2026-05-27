@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+interface Category {
+  id: number;
+  name: string;
+}
 
 export default function SignUp() {
   const [formData, setFormData] = useState({
@@ -10,10 +15,29 @@ export default function SignUp() {
     email: "",
     password: "",
     suburb: "",
+    favoriteCategories: [] as number[],
   });
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch("/api/categories");
+        if (response.ok) {
+          const data = await response.json();
+          setCategories(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +74,21 @@ export default function SignUp() {
       [e.target.name]: e.target.value,
     });
   };
+
+  const toggleFavoriteCategory = (categoryId: number) => {
+    const favoriteCategories = formData.favoriteCategories.includes(categoryId)
+      ? formData.favoriteCategories.filter((id) => id !== categoryId)
+      : [...formData.favoriteCategories, categoryId];
+
+    setFormData({
+      ...formData,
+      favoriteCategories,
+    });
+  };
+
+  const selectedCategoryNames = categories
+    .filter((category) => formData.favoriteCategories.includes(category.id))
+    .map((category) => category.name);
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -135,6 +174,52 @@ export default function SignUp() {
                 value={formData.suburb}
                 onChange={handleChange}
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Category Interests
+              </label>
+              <div className="relative mt-1">
+                <button
+                  type="button"
+                  onClick={() => setCategoriesOpen((isOpen) => !isOpen)}
+                  className="flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <span className="truncate">
+                    {selectedCategoryNames.length > 0
+                      ? selectedCategoryNames.join(", ")
+                      : "Select categories"}
+                  </span>
+                  <span className="ml-3 text-gray-400">v</span>
+                </button>
+                {categoriesOpen && (
+                  <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                    {categories.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-gray-500">
+                        Loading categories...
+                      </div>
+                    ) : (
+                      categories.map((category) => (
+                        <label
+                          key={category.id}
+                          className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.favoriteCategories.includes(category.id)}
+                            onChange={() => toggleFavoriteCategory(category.id)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>{category.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Select one or more categories for notification bell offers.
+              </p>
             </div>
           </div>
 

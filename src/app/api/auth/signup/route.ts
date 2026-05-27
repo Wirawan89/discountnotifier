@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
   try {
-    const { email, password, name, suburb } = await request.json();
+    const { email, password, name, suburb, favoriteCategories } = await request.json();
 
     // Validate input
     if (!email || !password || !suburb) {
@@ -31,6 +31,26 @@ export async function POST(request: Request) {
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
+    const selectedCategoryIds = Array.isArray(favoriteCategories)
+      ? favoriteCategories
+          .map((categoryId) => Number(categoryId))
+          .filter((categoryId) => Number.isInteger(categoryId) && categoryId > 0)
+      : [];
+
+    const validCategoryIds = selectedCategoryIds.length
+      ? (
+          await prisma.category.findMany({
+            where: {
+              id: {
+                in: selectedCategoryIds,
+              },
+            },
+            select: {
+              id: true,
+            },
+          })
+        ).map((category) => category.id)
+      : [];
 
     // Create user
     const user = await prisma.user.create({
@@ -43,6 +63,7 @@ export async function POST(request: Request) {
           create: {
             emailNotifications: true,
             pushNotifications: true,
+            favoriteCategories: validCategoryIds,
             notificationFrequency: "daily"
           }
         }

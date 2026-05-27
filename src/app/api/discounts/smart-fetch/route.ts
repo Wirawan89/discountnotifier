@@ -211,7 +211,7 @@ export async function POST(request: Request) {
     // Use the smart fetcher
     const result = await SmartFetcher.smartFetch(
       categoryId,
-      `${category.name} in ${country}`,
+      category.name,
       () => callMultipleProviders(category.name, country, providers),
       providers,
       country

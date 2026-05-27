@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import UserMenu from "@/components/UserMenu";
@@ -22,14 +23,24 @@ export default function RootLayout({
             {/* Header */}
             <header className="bg-white shadow-sm border-b border-gray-200">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <div className="flex items-center">
-                    <h1 className="text-xl font-bold text-gray-900">
+                <div className="flex min-h-16 items-center justify-between gap-3 py-2">
+                  <Link
+                    href="/"
+                    className="flex min-w-0 items-center rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    aria-label="Go to DiscountNotifier home"
+                  >
+                    <h1 className="truncate text-lg font-bold text-gray-900 sm:text-xl">
                       🛍️ DiscountNotifier
                     </h1>
-                  </div>
+                  </Link>
                   
-                  <div className="flex items-center space-x-4">
+                  <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+                    <a
+                      href="/business/signin"
+                      className="inline-flex rounded-md border border-red-200 px-2 py-2 text-xs font-medium text-red-700 hover:bg-red-50 sm:px-3 sm:text-sm"
+                    >
+                      Sign-in (Business)
+                    </a>
                     <NotificationBell />
                     <UserMenu />
                   </div>

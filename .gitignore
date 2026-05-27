@@ -110,9 +110,6 @@ temp/
 *.sqlite
 *.sqlite3
 
-# Prisma
-prisma/migrations/
-
 # Email test files
 test-emails/
 

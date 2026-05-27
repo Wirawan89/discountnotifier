@@ -39,7 +39,7 @@ export interface FetchResult {
   };
 }
 
-function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'dining' | 'entertainment' | 'services' {
+function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'dining' | 'entertainment' | 'services' | 'travel' {
   if (categoryName === 'Dining & Beverages' || categoryName === 'Caffe & Brunch') {
     return 'dining';
   }
@@ -50,6 +50,10 @@ function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'd
 
   if (categoryName === 'Financial & Services') {
     return 'services';
+  }
+
+  if (categoryName === 'Travel & Accommodation') {
+    return 'travel';
   }
 
   if (
@@ -64,7 +68,6 @@ function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'd
     categoryName === 'Luxury & Designer' ||
     categoryName === 'HIFI Audio & Speakers' ||
     categoryName === 'Gifts & Flowers' ||
-    categoryName === 'Travel & Accommodation' ||
     categoryName === 'Vitamins & Supplements' ||
     categoryName === 'Office & Stationery' ||
     categoryName === 'Games' ||
@@ -341,6 +344,8 @@ export class DiscountFetcher {
             ? `${storeName} Event Deals and Offers`
           : profile === 'services'
             ? `${storeName} Service Deals and Offers`
+          : profile === 'travel'
+            ? `${storeName} Travel Deals and Special Offers`
           : hasEofyOffer
             ? `${storeName} EOFY Deals`
             : `${storeName} current sale and offers`,
@@ -498,6 +503,93 @@ export class DiscountFetcher {
         stats: { totalStores: 0, totalDiscounts: 0, validStores: 0, validDiscounts: 0 }
       };
     }
+  }
+
+  static async verifyExistingCategoryStores(
+    categoryId: number,
+    categoryName: string,
+    country = 'Australia'
+  ): Promise<{ stores: StoreData[]; stats: FetchResult['stats']; errors: string[] }> {
+    const errors: string[] = [];
+    const normalizedCountry = country && country.trim().length > 0 ? country.trim() : 'Australia';
+    const countryWhere =
+      normalizedCountry === 'Australia'
+        ? {
+            OR: [
+              { country: 'Australia' },
+              { country: '' },
+            ],
+          }
+        : { country: normalizedCountry };
+
+    const dbStores = await prisma.store.findMany({
+      where: {
+        categoryId,
+        ...countryWhere,
+      },
+      include: {
+        discounts: {
+          where: {
+            endDate: {
+              gte: new Date(),
+            },
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    const verifiedStores: StoreData[] = [];
+
+    for (const dbStore of dbStores) {
+      try {
+        const storeData: StoreData = {
+          name: dbStore.name,
+          url: dbStore.url,
+          suburb: dbStore.suburb,
+          city: dbStore.city,
+          country: dbStore.country || normalizedCountry,
+          contact: dbStore.contact || undefined,
+          address: dbStore.address || undefined,
+          description: dbStore.description || undefined,
+          catalogs: dbStore.catalogs,
+          discounts: dbStore.discounts.map((discount) => ({
+            title: discount.title,
+            description: discount.description || undefined,
+            startDate: discount.startDate.toISOString().slice(0, 10),
+            endDate: discount.endDate.toISOString().slice(0, 10),
+            percentage: discount.percentage || undefined,
+            coupon: discount.coupon || undefined,
+            eCatalog: discount.eCatalog,
+          })),
+        };
+
+        const verifiedStore = await this.keepOnlyVerifiedOffers(storeData, categoryName);
+        verifiedStores.push(verifiedStore);
+        await this.saveToDatabase([verifiedStore], categoryId, dbStore.ownerId);
+      } catch (error) {
+        const errorMessage = `Failed to verify existing store ${dbStore.name}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`;
+        errors.push(errorMessage);
+        console.error(errorMessage);
+      }
+    }
+
+    const totalDiscounts = verifiedStores.reduce((sum, store) => sum + store.discounts.length, 0);
+
+    return {
+      stores: verifiedStores,
+      errors,
+      stats: {
+        totalStores: verifiedStores.length,
+        totalDiscounts,
+        validStores: verifiedStores.length,
+        validDiscounts: totalDiscounts,
+      },
+    };
   }
 
   static async saveToDatabase(

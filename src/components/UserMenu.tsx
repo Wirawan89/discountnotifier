@@ -28,19 +28,19 @@ export default function UserMenu() {
 
   if (!session?.user) {
     return (
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center gap-2 sm:gap-3">
         <Link
           href="/auth/signin"
           className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
         >
           Sign In
         </Link>
-        <Link
-          href="/auth/signup"
+        <a
+          href="/auth/account-type"
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
         >
           Sign Up
-        </Link>
+        </a>
       </div>
     );
   }
@@ -98,6 +98,20 @@ export default function UserMenu() {
             >
               Preferences
             </Link>
+            <a
+              href="/business/signin"
+              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t border-gray-100"
+              onClick={() => setIsOpen(false)}
+            >
+              Sign-in (Business)
+            </a>
+            <a
+              href="/business/signup"
+              className="block px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+              onClick={() => setIsOpen(false)}
+            >
+              Register Business
+            </a>
             {isAdmin && (
               <Link
                 href="/admin"

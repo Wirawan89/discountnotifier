@@ -390,19 +390,35 @@ export class SmartFetcher {
           fetchResult.stores,
           categoryId
         );
+        const existingVerificationResult = await DiscountFetcher.verifyExistingCategoryStores(
+          categoryId,
+          categoryName,
+          country
+        );
+        const totalStores = Math.max(
+          fetchResult.stats.totalStores,
+          existingVerificationResult.stats.totalStores
+        );
+        const totalDiscounts = existingVerificationResult.stats.totalDiscounts;
 
         // Update fetch log
         await this.updateFetchLog(categoryId, {
-          totalStores: fetchResult.stats.totalStores,
-          totalDiscounts: fetchResult.stats.totalDiscounts
+          totalStores,
+          totalDiscounts
         });
 
         return {
           success: true,
           message: `Successfully fetched fresh data for ${categoryName}`,
-          data: fetchResult.stores,
+          data: existingVerificationResult.stores,
           stats: {
             ...fetchResult.stats,
+            totalStores,
+            totalDiscounts,
+            validStores: totalStores,
+            validDiscounts: totalDiscounts,
+            existingStoresVerified: existingVerificationResult.stats.totalStores,
+            existingVerificationErrors: existingVerificationResult.errors.length,
             wasCached: false,
             refreshPeriodDays: reservation.refreshPeriodDays,
             fetchStatus: 'success',

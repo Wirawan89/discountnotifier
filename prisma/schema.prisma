@@ -23,6 +23,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @default(now())
   stores        Store[]
+  business      Business?
   notifications Notification[]
   preferences   UserPreference?
   accessLogs    UserAccessLog[]
@@ -109,6 +110,7 @@ model Store {
   categoryId  Int
   owner       User       @relation(fields: [ownerId], references: [id])
   ownerId     Int
+  business    Business?
   showcases   Showcase[]
   discounts   Discount[]
   background String?
@@ -148,10 +150,44 @@ model Category {
   id    Int    @id @default(autoincrement())
   name  String @unique
   stores Store[]
+  businesses Business[]
   fetchLogs CategoryFetchLog[]
   userAccessLogs UserAccessLog[]
   tokenUsageLogs TokenUsageLog[]
   aiPerformanceLogs AiPerformanceLog[]
+}
+
+model Business {
+  id                    Int      @id @default(autoincrement())
+  userId                Int      @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeId               Int?     @unique
+  store                 Store?   @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  firstName             String
+  lastName              String
+  dob                   DateTime
+  businessName          String
+  address               String
+  suburb                String
+  state                 String
+  country               String   @default("Australia")
+  url                   String   @unique
+  categoryId            Int
+  category              Category @relation(fields: [categoryId], references: [id])
+  promotionMessage      String   @db.VarChar(96)
+  promotionStartDate    DateTime
+  promotionEndDate      DateTime
+  showcaseImages        String[] @default([])
+  aiImageTextEnabled    Boolean  @default(false)
+  aiImageTextPrompt     String?
+  membershipType        String   @default("Silver")
+  status                String   @default("active")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([membershipType, promotionEndDate])
+  @@index([status, promotionStartDate, promotionEndDate])
 }
 
 model CategoryFetchLog {

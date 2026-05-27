@@ -26,9 +26,9 @@ export default function CategorySidebar({
   onOffersNearby,
 }: CategorySidebarProps) {
   return (
-    <aside className="w-1/3 bg-gray-50 shadow-md">
-      <div className="flex h-full flex-col gap-3 p-4">
-        <div className="flex flex-col items-start gap-3">
+    <aside className="w-full bg-gray-50 shadow-md lg:w-1/3">
+      <div className="flex h-full flex-col gap-3 p-3 sm:p-4">
+        <div className="flex flex-row flex-wrap items-start gap-3 lg:flex-col">
           <NearbyButton
             label="saleNearby"
             active={isSaleNearbyActive}
@@ -44,29 +44,50 @@ export default function CategorySidebar({
           />
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-4 shadow-sm">
-          <h2 className="text-xl font-bold mb-4 text-gray-800">Categories</h2>
+        <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-3 shadow-sm sm:p-4">
+          <h2 className="mb-3 text-lg font-bold text-gray-800 sm:mb-4 sm:text-xl">Categories</h2>
           {loading ? (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex min-h-24 flex-1 items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  className={`w-full text-left p-3 rounded-lg cursor-pointer transition-all duration-200 text-sm transform hover:scale-105 ${
-                    selectedCategory?.id === category.id
-                      ? "bg-blue-100 text-blue-900 border-l-4 border-blue-500 shadow-md"
-                      : "bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm"
-                  }`}
-                  onClick={() => onSelectCategory(category)}
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
+            <>
+              <select
+                value={selectedCategory?.id ?? ""}
+                onChange={(event) => {
+                  const category = categories.find((item) => item.id === Number(event.target.value));
+                  if (category) {
+                    onSelectCategory(category);
+                  }
+                }}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 lg:hidden"
+                aria-label="Select category"
+              >
+                <option value="">Select Category</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="hidden lg:block lg:flex-1 lg:space-y-2 lg:overflow-y-auto lg:pr-2">
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className={`cursor-pointer rounded-lg px-3 py-2 text-left text-sm transition-all duration-200 lg:w-full lg:p-3 lg:transform lg:hover:scale-105 ${
+                      selectedCategory?.id === category.id
+                        ? "bg-blue-100 text-blue-900 border-l-4 border-blue-500 shadow-md"
+                        : "bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm"
+                    }`}
+                    onClick={() => onSelectCategory(category)}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>

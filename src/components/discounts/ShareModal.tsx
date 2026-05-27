@@ -34,8 +34,8 @@ export default function ShareModal({ shareData, onClose }: ShareModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 sm:p-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold">Share {shareData.discount ? "Discount" : "Store"}</h3>
           <button
@@ -58,18 +58,18 @@ export default function ShareModal({ shareData, onClose }: ShareModalProps) {
           )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
             onClick={handleShare}
-            className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+            className="flex-1 rounded bg-blue-600 py-2 text-white transition-colors hover:bg-blue-700"
           >
             Share
           </button>
           <button
             type="button"
             onClick={handleCopyUrl}
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+            className="rounded bg-gray-600 px-4 py-2 text-white transition-colors hover:bg-gray-700"
           >
             Copy URL
           </button>

@@ -29,3 +29,20 @@ export type ShareData = {
   store: Store;
   discount?: Discount;
 };
+
+export type BusinessPromotion = {
+  id: number;
+  businessName: string;
+  url: string;
+  suburb: string;
+  country: string;
+  category: Category;
+  store?: Store | null;
+  promotionMessage: string;
+  promotionStartDate: string;
+  promotionEndDate: string;
+  showcaseImages: string[];
+  aiImageTextEnabled?: boolean;
+  aiImageTextPrompt?: string | null;
+  membershipType: "Platinum" | "Gold" | "Silver" | string;
+};

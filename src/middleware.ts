@@ -5,9 +5,13 @@ export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
+    const isPublicPath =
+      path.startsWith("/auth/") ||
+      path === "/business/signin" ||
+      path === "/business/signup";
 
     // Only redirect if user needs to complete profile and is not already on the profile completion page
-    if (token?.needsProfileCompletion && path !== "/profile/complete" && path !== "/auth/signin") {
+    if (token?.needsProfileCompletion && path !== "/profile/complete" && !isPublicPath) {
       return NextResponse.redirect(new URL("/profile/complete", req.url));
     }
 
@@ -21,8 +25,14 @@ export default withAuth(
   {
     callbacks: {
       authorized: ({ token, req }) => {
+        const path = req.nextUrl.pathname;
+
         // Allow access to auth pages without authentication
-        if (req.nextUrl.pathname.startsWith('/auth/')) {
+        if (
+          path.startsWith('/auth/') ||
+          path === '/business/signin' ||
+          path === '/business/signup'
+        ) {
           return true;
         }
         // Require authentication for other pages
