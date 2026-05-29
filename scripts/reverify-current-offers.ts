@@ -7,7 +7,11 @@ const storeName = process.argv.find((arg) => arg.startsWith("--store="))?.split(
 const createMissingOffers = process.argv.includes("--create-missing");
 
 function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel" {
-  if (categoryName === "Dining & Beverages" || categoryName === "Caffe & Brunch") {
+  if (
+    categoryName === "Dining & Beverages" ||
+    categoryName === "Caffe & Brunch" ||
+    categoryName === "Cultural Bites & Takeaway"
+  ) {
     return "dining";
   }
 
@@ -15,7 +19,7 @@ function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "d
     return "entertainment";
   }
 
-  if (categoryName === "Financial & Services") {
+  if (categoryName === "Financial & Services" || categoryName === "Hobbies & Classes") {
     return "services";
   }
 
@@ -25,6 +29,7 @@ function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "d
 
   if (
     categoryName === "Sport Gears" ||
+    categoryName === "Factory Outlets" ||
     categoryName === "Music Gears" ||
     categoryName === "Food & Groceries" ||
     categoryName === "Cosmetic & Perfumes" ||
@@ -195,6 +200,17 @@ async function main() {
       });
 
       if (result.hasOffer) {
+        if (result.matchedUrl) {
+          await prisma.discount.update({
+            where: {
+              id: discount.id,
+            },
+            data: {
+              eCatalog: [result.matchedUrl],
+            },
+          });
+        }
+
         kept++;
         console.log(
           `[keep] ${store.category.name} / ${store.name} / ${discount.title} (${result.matchedKeywords.join(", ")} at ${result.matchedUrl})`

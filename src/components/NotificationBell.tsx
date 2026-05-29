@@ -28,6 +28,7 @@ interface VerifiedStore {
     description?: string | null;
     startDate: string;
     endDate: string;
+    eCatalog?: string[];
   }[];
 }
 
@@ -117,6 +118,12 @@ export default function NotificationBell() {
     if (diffInHours < 24) return `${diffInHours}h ago`;
     if (diffInHours < 48) return "Yesterday";
     return date.toLocaleDateString();
+  };
+
+  const getVisitUrl = (store: VerifiedStore) => {
+    const offerUrl = store.discounts[0]?.eCatalog?.find((url) => /^https?:\/\//i.test(url));
+
+    return offerUrl || store.url;
   };
 
   if (!session?.user) {
@@ -211,7 +218,7 @@ export default function NotificationBell() {
                         <p className="mt-1 text-xs text-gray-500">Happening Now...</p>
                       </div>
                       <a
-                        href={store.url}
+                        href={getVisitUrl(store)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="shrink-0 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"

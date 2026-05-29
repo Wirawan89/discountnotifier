@@ -37,7 +37,7 @@ export default function CategorySidebar({
           />
           <NearbyButton
             label="offersNearby"
-            description="Brunch, Dining & Beverages"
+            description="Brunch, Dining, Cultural Bites"
             active={isOffersNearbyActive}
             loading={isOffersNearbyLoading}
             onClick={onOffersNearby}

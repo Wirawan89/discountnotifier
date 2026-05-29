@@ -23,6 +23,7 @@ export type Discount = {
   endDate: string;
   image?: string | null;
   coupon?: string | null;
+  eCatalog?: string[];
 };
 
 export type ShareData = {
@@ -39,6 +40,7 @@ export type BusinessPromotion = {
   category: Category;
   store?: Store | null;
   promotionMessage: string;
+  promotionUrl?: string | null;
   promotionStartDate: string;
   promotionEndDate: string;
   showcaseImages: string[];

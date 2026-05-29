@@ -22,7 +22,13 @@ export default function StoreCard({
   onShare,
 }: StoreCardProps) {
   const storeDiscounts = discounts.filter((discount) => discount.storeId === store.id);
-  const storeUrl = /^https?:\/\//i.test(store.url) ? store.url : `https://${store.url}`;
+  const normalizeExternalUrl = (url: string) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+  const getDiscountUrl = (discount?: Discount) => {
+    const offerUrl = discount?.eCatalog?.find((url) => /^https?:\/\//i.test(url));
+
+    return normalizeExternalUrl(offerUrl || store.url);
+  };
+  const primaryVisitUrl = getDiscountUrl(storeDiscounts[0]);
   const getOfferPeriodText = (discount: Discount) => {
     const isLiveVerifiedOffer = /offer wording found on the store website/i.test(discount.description || "");
 
@@ -34,7 +40,7 @@ export default function StoreCard({
   };
 
   const handleVisitStore = (event: MouseEvent<HTMLAnchorElement>) => {
-    const openedWindow = window.open(storeUrl, "_blank");
+    const openedWindow = window.open(primaryVisitUrl, "_blank");
 
     if (openedWindow) {
       event.preventDefault();
@@ -75,7 +81,7 @@ export default function StoreCard({
 
         <div className="mb-3 flex flex-col gap-2 min-[420px]:flex-row">
           <a
-            href={storeUrl}
+            href={primaryVisitUrl}
             target="_blank"
             rel="noopener noreferrer"
             onClick={handleVisitStore}
@@ -105,12 +111,18 @@ export default function StoreCard({
                 <p className="text-xs text-gray-400">No offer at the moment</p>
               ) : (
                 storeDiscounts.slice(0, 2).map((discount) => (
-                  <div key={discount.id} className="bg-red-50 p-2 rounded border-l-2 border-red-400 hover:bg-red-100 transition-colors duration-200">
+                  <a
+                    key={discount.id}
+                    href={getDiscountUrl(discount)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-red-50 p-2 rounded border-l-2 border-red-400 hover:bg-red-100 transition-colors duration-200"
+                  >
                     <div className="font-medium text-red-700 text-xs">{discount.title}</div>
                     <div className="text-xs text-gray-600 mt-1">
                       {getOfferPeriodText(discount)}
                     </div>
-                  </div>
+                  </a>
                 ))
               )}
             </div>

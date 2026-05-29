@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { createHash, randomBytes } from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
 
-const prisma = new PrismaClient();
 
 const RESET_TOKEN_PREFIX = "password-reset:";
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;

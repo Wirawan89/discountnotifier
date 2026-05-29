@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { sendDiscountNotifications } from '../../../../lib/email';
 import { DiscountFetcher } from '../../../../lib/discount-fetcher';
 
-const prisma = new PrismaClient();
 
 // Helper to call OpenRouter API with Perplexity Sonar model
 async function callOpenRouterForCategory(categoryName: string): Promise<string> {
@@ -15,6 +14,7 @@ async function callOpenRouterForCategory(categoryName: string): Promise<string> 
 Category rules:
 - "Food & Groceries": Woolworths, Coles, Aldi Australia, IGA
 - "Caffe & Brunch": cafes, coffee shops, brunch spots  
+- "Cultural Bites & Takeaway": Asian cultural bites, banh mi, momo, chaat, noodle bars, and casual takeaway food
 - "Dining & Beverages": restaurants, bars, pubs (NOT cafes)
 - "Cosmetic & Perfumes": Adore Beauty, Sephora, Mecca
 - "Baby & Kids": baby products, children's clothing, toys

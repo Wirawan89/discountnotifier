@@ -113,6 +113,7 @@ model Store {
   business    Business?
   showcases   Showcase[]
   discounts   Discount[]
+  promotions  Promotion[]
   background String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @default(now()) @updatedAt
@@ -171,10 +172,12 @@ model Business {
   suburb                String
   state                 String
   country               String   @default("Australia")
+  abn                   String?
   url                   String   @unique
   categoryId            Int
   category              Category @relation(fields: [categoryId], references: [id])
   promotionMessage      String   @db.VarChar(96)
+  promotionUrl          String?
   promotionStartDate    DateTime
   promotionEndDate      DateTime
   showcaseImages        String[] @default([])
@@ -182,12 +185,39 @@ model Business {
   aiImageTextPrompt     String?
   membershipType        String   @default("Silver")
   status                String   @default("active")
+  verificationStatus    String   @default("pending")
+  subscriptionStatus    String   @default("trial")
+  promotions            Promotion[]
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
   @@index([categoryId])
   @@index([membershipType, promotionEndDate])
   @@index([status, promotionStartDate, promotionEndDate])
+  @@index([verificationStatus])
+  @@index([subscriptionStatus])
+}
+
+model Promotion {
+  id         Int      @id @default(autoincrement())
+  business  Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId Int
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId   Int
+  message   String   @db.VarChar(96)
+  url       String?
+  startDate DateTime
+  endDate   DateTime
+  priority  Int      @default(0)
+  status    String   @default("active")
+  source    String   @default("business")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([storeId])
+  @@index([status, startDate, endDate])
+  @@index([priority, endDate])
 }
 
 model CategoryFetchLog {

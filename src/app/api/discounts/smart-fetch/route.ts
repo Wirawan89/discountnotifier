@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { SmartFetcher } from '../../../../lib/smart-fetcher';
 
-const prisma = new PrismaClient();
 const DEFAULT_COUNTRY = 'Australia';
 
 function normalizeCountry(country: string | undefined): string {
@@ -116,7 +115,7 @@ async function callOpenRouterForCategory(categoryName: string, country: string):
           content: buildDiscountFetchPrompt(categoryName, country)
         }
       ],
-      max_tokens: 3000,
+      max_tokens: 1800,
       temperature: 0.7,
     }),
   });
@@ -139,7 +138,7 @@ async function callClaudeForCategory(categoryName: string, country: string): Pro
     },
     body: JSON.stringify({
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 3000,
+      max_tokens: 1800,
       messages: [
         {
           role: 'user',
@@ -174,7 +173,7 @@ async function callGeminiForCategory(categoryName: string, country: string): Pro
         }
       ],
       generationConfig: {
-        maxOutputTokens: 3000,
+        maxOutputTokens: 1800,
         temperature: 0.7,
       },
     }),

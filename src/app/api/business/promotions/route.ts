@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
-const prisma = new PrismaClient();
 
 const MEMBERSHIP_PRIORITY: Record<string, number> = {
   Platinum: 0,
@@ -59,6 +58,7 @@ export async function GET() {
         id: business.id,
         businessName: business.businessName,
         url: business.url,
+        promotionUrl: business.promotionUrl,
         suburb: business.suburb,
         country: business.country,
         category: business.category,

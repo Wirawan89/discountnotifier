@@ -1,11 +1,31 @@
 import { NextResponse } from "next/server";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
 const MAX_PROMOTION_MESSAGE_LENGTH = 96;
 const MAX_SHOWCASE_PAYLOAD_BYTES = 1_500_000;
 const MEMBERSHIP_TYPES = new Set(["Platinum", "Gold", "Silver"]);
+const MEMBERSHIP_PRIORITY: Record<string, number> = {
+  Platinum: 0,
+  Gold: 1,
+  Silver: 2,
+};
+const SHARED_DIRECTORY_DOMAINS = new Set([
+  "westfield.com.au",
+  "stockland.com.au",
+  "qicre.com",
+  "vicinity.com.au",
+  "scentregroup.com",
+  "dexus.com",
+  "meriton.com.au",
+  "cabramattaplaza.com.au",
+  "duttonplaza.com.au",
+  "marrickvillemetro.com.au",
+  "burwoodplaza.com.au",
+  "villageplaza.com.au",
+  "canberraoutlet.com.au",
+]);
 
 function normalizeDate(value: unknown) {
   if (typeof value !== "string" || !value.trim()) {
@@ -33,6 +53,122 @@ function normalizeBusinessUrl(value: unknown) {
   }
 
   return /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+}
+
+function normalizeOptionalUrl(value: unknown) {
+  const rawUrl = String(value || "").trim();
+  if (!rawUrl) {
+    return null;
+  }
+
+  return /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+}
+
+function getDomain(value: string) {
+  try {
+    return new URL(normalizeBusinessUrl(value)).hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+  } catch (_error) {
+    return "";
+  }
+}
+
+function normalizeComparableUrl(value: string) {
+  try {
+    const url = new URL(normalizeBusinessUrl(value));
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    const pathname = url.pathname.replace(/\/+$/, "") || "/";
+
+    return `${hostname}${pathname}`.toLowerCase();
+  } catch (_error) {
+    return "";
+  }
+}
+
+function normalizeName(value: unknown) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\b(pty|ltd|limited|australia|australian|store|stores|shop|official)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeLocation(value: unknown) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function tokenOverlapScore(inputName: string, storeName: string) {
+  const inputTokens = new Set(
+    normalizeName(inputName)
+      .split(/\s+/)
+      .filter((token) => token.length >= 3)
+  );
+  const storeTokens = new Set(
+    normalizeName(storeName)
+      .split(/\s+/)
+      .filter((token) => token.length >= 3)
+  );
+
+  if (inputTokens.size === 0 || storeTokens.size === 0) {
+    return 0;
+  }
+
+  let overlap = 0;
+  for (const token of inputTokens) {
+    if (storeTokens.has(token)) {
+      overlap++;
+    }
+  }
+
+  return Math.round((overlap / Math.max(inputTokens.size, storeTokens.size)) * 45);
+}
+
+function getStoreIdentityConflictReason({
+  inputUrl,
+  storeUrl,
+  inputName,
+  storeName,
+  inputSuburb,
+  storeSuburb,
+  storeCity,
+}: {
+  inputUrl: string;
+  storeUrl: string;
+  inputName: string;
+  storeName: string;
+  inputSuburb: string;
+  storeSuburb: string;
+  storeCity: string;
+}) {
+  const inputDomain = getDomain(inputUrl);
+  const storeDomain = getDomain(storeUrl);
+  const isSameDomain = Boolean(inputDomain && storeDomain && inputDomain === storeDomain);
+
+  if (!isSameDomain) {
+    return null;
+  }
+
+  const isSameFullUrl = normalizeComparableUrl(inputUrl) === normalizeComparableUrl(storeUrl);
+  if (isSameFullUrl) {
+    return "same website URL";
+  }
+
+  const isSharedDomain = SHARED_DIRECTORY_DOMAINS.has(storeDomain);
+  if (!isSharedDomain) {
+    return "same website domain";
+  }
+
+  const sameLocation =
+    normalizeLocation(inputSuburb) &&
+    (normalizeLocation(inputSuburb) === normalizeLocation(storeSuburb) ||
+      normalizeLocation(inputSuburb) === normalizeLocation(storeCity));
+  const nameScore = tokenOverlapScore(inputName, storeName);
+
+  return sameLocation && nameScore >= 25
+    ? "same shared directory domain, similar name, and same suburb"
+    : null;
 }
 
 export async function POST(request: Request) {
@@ -69,9 +205,6 @@ export async function POST(request: Request) {
       "country",
       "url",
       "categoryId",
-      "promotionMessage",
-      "promotionStartDate",
-      "promotionEndDate",
     ];
 
     const missingField = requiredFields.find((field) => !data[field]);
@@ -82,7 +215,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const promotionMessage = String(data.promotionMessage).trim();
+    const promotionMessage = String(data.promotionMessage || "").trim();
     if (promotionMessage.length > MAX_PROMOTION_MESSAGE_LENGTH) {
       return NextResponse.json(
         { error: "Promotion Message must be 96 characters or less" },
@@ -93,15 +226,28 @@ export async function POST(request: Request) {
     const dob = normalizeDate(data.dob);
     const promotionStartDate = normalizeDate(data.promotionStartDate);
     const promotionEndDate = normalizeDate(data.promotionEndDate);
+    const hasPromotionInput = Boolean(
+      promotionMessage ||
+      data.promotionStartDate ||
+      data.promotionEndDate ||
+      data.promotionUrl
+    );
 
-    if (!dob || !promotionStartDate || !promotionEndDate) {
+    if (!dob) {
       return NextResponse.json(
-        { error: "DOB and promotion dates must be valid dates" },
+        { error: "DOB must be a valid date" },
         { status: 400 }
       );
     }
 
-    if (promotionEndDate < promotionStartDate) {
+    if (hasPromotionInput && (!promotionMessage || !promotionStartDate || !promotionEndDate)) {
+      return NextResponse.json(
+        { error: "To publish a promotion, enter Promotion Message, From date, and To date." },
+        { status: 400 }
+      );
+    }
+
+    if (promotionStartDate && promotionEndDate && promotionEndDate < promotionStartDate) {
       return NextResponse.json(
         { error: "Promotion end date must be after the start date" },
         { status: 400 }
@@ -130,6 +276,7 @@ export async function POST(request: Request) {
     }
 
     const normalizedUrl = normalizeBusinessUrl(data.url);
+    const promotionUrl = normalizeOptionalUrl(data.promotionUrl);
     try {
       const parsedUrl = new URL(normalizedUrl);
       if (!["http:", "https:"].includes(parsedUrl.protocol)) {
@@ -142,20 +289,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const [existingBusinessUrl, existingStoreUrl] = await Promise.all([
-      prisma.business.findUnique({
-        where: {
-          url: normalizedUrl,
-        },
-      }),
-      prisma.store.findUnique({
-        where: {
-          url: normalizedUrl,
-        },
-      }),
-    ]);
+    if (promotionUrl) {
+      try {
+        const parsedPromotionUrl = new URL(promotionUrl);
+        if (!["http:", "https:"].includes(parsedPromotionUrl.protocol)) {
+          throw new Error("Invalid protocol");
+        }
+      } catch (_error) {
+        return NextResponse.json(
+          { error: "Promotion URL must be a valid website URL" },
+          { status: 400 }
+        );
+      }
+    }
 
-    if (existingBusinessUrl || existingStoreUrl) {
+    const existingBusinessUrl = await prisma.business.findUnique({
+      where: {
+        url: normalizedUrl,
+      },
+    });
+
+    if (existingBusinessUrl) {
       return NextResponse.json(
         { error: "A business already exists with this URL" },
         { status: 400 }
@@ -175,6 +329,89 @@ export async function POST(request: Request) {
       );
     }
 
+    const claimedStoreId = Number(data.claimedStoreId || 0);
+    const claimedStore = claimedStoreId > 0
+      ? await prisma.store.findUnique({
+          where: {
+            id: claimedStoreId,
+          },
+          include: {
+            business: true,
+          },
+        })
+      : null;
+
+    if (claimedStoreId > 0 && !claimedStore) {
+      return NextResponse.json(
+        { error: "Selected store could not be found. Please search again." },
+        { status: 400 }
+      );
+    }
+
+    if (claimedStore?.business) {
+      return NextResponse.json(
+        { error: "This store has already been claimed by another business account." },
+        { status: 400 }
+      );
+    }
+
+    const businessName = String(data.businessName).trim();
+    const suburb = String(data.suburb).trim();
+    const country = String(data.country).trim();
+    const address = String(data.address).trim();
+    const candidateStores = await prisma.store.findMany({
+      where: {
+        country: {
+          in: country === "Australia" ? ["Australia", ""] : [country],
+        },
+      },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      take: 2500,
+    });
+    const identityConflict = candidateStores
+      .filter((store) => store.id !== claimedStore?.id)
+      .map((store) => ({
+        store,
+        reason: getStoreIdentityConflictReason({
+          inputUrl: normalizedUrl,
+          storeUrl: store.url,
+          inputName: businessName,
+          storeName: store.name,
+          inputSuburb: suburb,
+          storeSuburb: store.suburb,
+          storeCity: store.city,
+        }),
+      }))
+      .find((match) => match.reason);
+
+    if (!claimedStore && identityConflict) {
+      const conflictStore = identityConflict.store;
+      return NextResponse.json(
+        {
+          error:
+            "This business website already exists in DiscountNotifier. Please use the matching store claim option instead of creating a duplicate.",
+          existingStore: {
+            id: conflictStore.id,
+            name: conflictStore.name,
+            url: conflictStore.url,
+            suburb: conflictStore.suburb,
+            city: conflictStore.city,
+            categoryId: conflictStore.categoryId,
+            categoryName: conflictStore.category.name,
+            matchReason: identityConflict.reason,
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     const requestedMembershipType = String(data.membershipType || "Silver");
     const membershipType = MEMBERSHIP_TYPES.has(requestedMembershipType)
       ? requestedMembershipType
@@ -190,6 +427,8 @@ export async function POST(request: Request) {
 
     const hashedPassword = await bcrypt.hash(String(data.password), 12);
     const normalizedEmail = String(data.email).trim().toLowerCase();
+    const effectiveCategoryId = claimedStore?.categoryId || categoryId;
+    const promotionPriority = MEMBERSHIP_PRIORITY[membershipType] ?? 2;
 
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -197,34 +436,50 @@ export async function POST(request: Request) {
           email: normalizedEmail,
           password: hashedPassword,
           name: `${String(data.firstName).trim()} ${String(data.lastName).trim()}`,
-          suburb: String(data.suburb).trim(),
+          suburb,
           role: "business",
           preferences: {
             create: {
               emailNotifications: true,
               pushNotifications: true,
-              favoriteCategories: [categoryId],
+              favoriteCategories: [effectiveCategoryId],
               notificationFrequency: "daily",
             },
           },
         },
       });
 
-      const store = await tx.store.create({
-        data: {
-          name: String(data.businessName).trim(),
-          url: normalizedUrl,
-          suburb: String(data.suburb).trim(),
-          city: String(data.suburb).trim(),
-          country: String(data.country).trim(),
-          address: String(data.address).trim(),
-          description: `Business submitted promotion: ${promotionMessage}`,
-          catalogs: showcaseImages,
-          background: showcaseImages[0] || null,
-          categoryId,
-          ownerId: user.id,
-        },
-      });
+      const store = claimedStore
+        ? await tx.store.update({
+            where: {
+              id: claimedStore.id,
+            },
+            data: {
+              name: businessName,
+              suburb,
+              city: suburb,
+              country,
+              address,
+              description: promotionMessage ? `Business submitted promotion: ${promotionMessage}` : claimedStore.description,
+              background: showcaseImages[0] || claimedStore.background,
+              ownerId: user.id,
+            },
+          })
+        : await tx.store.create({
+            data: {
+              name: businessName,
+              url: normalizedUrl,
+              suburb,
+              city: suburb,
+              country,
+              address,
+              description: promotionMessage ? `Business submitted promotion: ${promotionMessage}` : null,
+              catalogs: [],
+              background: showcaseImages[0] || null,
+              categoryId,
+              ownerId: user.id,
+            },
+          });
 
       const business = await tx.business.create({
         data: {
@@ -233,47 +488,69 @@ export async function POST(request: Request) {
           firstName: String(data.firstName).trim(),
           lastName: String(data.lastName).trim(),
           dob,
-          businessName: String(data.businessName).trim(),
-          address: String(data.address).trim(),
-          suburb: String(data.suburb).trim(),
+          businessName,
+          address,
+          suburb,
           state: String(data.state).trim(),
-          country: String(data.country).trim(),
+          country,
+          abn: data.abn ? String(data.abn).trim() : null,
           url: normalizedUrl,
-          categoryId,
+          categoryId: store.categoryId,
+          promotionUrl,
           promotionMessage,
-          promotionStartDate,
-          promotionEndDate,
+          promotionStartDate: promotionStartDate || new Date(),
+          promotionEndDate: promotionEndDate || new Date(),
           showcaseImages,
           aiImageTextEnabled: Boolean(data.aiImageTextEnabled),
           aiImageTextPrompt: data.aiImageTextPrompt ? String(data.aiImageTextPrompt).trim() : null,
           membershipType,
           status: "active",
+          verificationStatus: claimedStore ? "claimed_pending" : "pending",
+          subscriptionStatus: "trial",
         },
       });
 
-      await tx.discount.create({
-        data: {
-          storeId: store.id,
-          title: promotionMessage,
-          description: `Business promotion submitted by ${String(data.businessName).trim()}`,
-          startDate: promotionStartDate,
-          endDate: promotionEndDate,
-          eCatalog: showcaseImages,
-        },
-      });
+      if (hasPromotionInput && promotionStartDate && promotionEndDate) {
+        await tx.promotion.create({
+          data: {
+            businessId: business.id,
+            storeId: store.id,
+            message: promotionMessage,
+            url: promotionUrl,
+            startDate: promotionStartDate,
+            endDate: promotionEndDate,
+            priority: promotionPriority,
+            status: "active",
+            source: claimedStore ? "business_claim" : "business",
+          },
+        });
 
-      await Promise.all(
-        showcaseImages.map((_, index) =>
-          tx.showcase.create({
-            data: {
-              storeId: store.id,
-              window: index + 1,
-              startDate: promotionStartDate,
-              endDate: promotionEndDate,
-            },
-          })
-        )
-      );
+        await tx.discount.create({
+          data: {
+            storeId: store.id,
+            title: promotionMessage,
+            description: `Business promotion submitted by ${String(data.businessName).trim()}`,
+            startDate: promotionStartDate,
+            endDate: promotionEndDate,
+            eCatalog: promotionUrl ? [promotionUrl] : showcaseImages,
+          },
+        });
+      }
+
+      if (hasPromotionInput && promotionStartDate && promotionEndDate) {
+        await Promise.all(
+          showcaseImages.map((_, index) =>
+            tx.showcase.create({
+              data: {
+                storeId: store.id,
+                window: index + 1,
+                startDate: promotionStartDate,
+                endDate: promotionEndDate,
+              },
+            })
+          )
+        );
+      }
 
       return { user, store, business };
     });
@@ -284,6 +561,7 @@ export async function POST(request: Request) {
         userId: result.user.id,
         businessId: result.business.id,
         storeId: result.store.id,
+        claimedExistingStore: Boolean(claimedStore),
       },
       { status: 201 }
     );

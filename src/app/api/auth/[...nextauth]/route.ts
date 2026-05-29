@@ -4,12 +4,11 @@ import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
 import FacebookProvider from "next-auth/providers/facebook";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { sendWelcomeEmail } from "../../../../lib/email";
 import type { NextAuthOptions } from "next-auth";
 
-const prisma = new PrismaClient();
 
 function hasRealOAuthCredential(value?: string) {
   if (!value) return false;

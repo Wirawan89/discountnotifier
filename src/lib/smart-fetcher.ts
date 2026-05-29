@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { DiscountFetcher } from './discount-fetcher';
 
-const prisma = new PrismaClient();
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FETCH_LOCK_TTL_MS = 15 * 60 * 1000;
 const DEFAULT_COUNTRY = 'Australia';
@@ -112,6 +111,7 @@ export class SmartFetcher {
         const fetchingStartedRecently =
           fetchLog.fetchStatus === 'fetching' &&
           now.getTime() - fetchLog.updatedAt.getTime() < FETCH_LOCK_TTL_MS;
+        const lastAttemptFailed = fetchLog.fetchStatus === 'failed';
 
         if (fetchingStartedRecently) {
           return {
@@ -125,7 +125,7 @@ export class SmartFetcher {
           };
         }
 
-        if (timeSinceLastFetch < this.getRefreshPeriodMs(refreshPeriodDays)) {
+        if (!lastAttemptFailed && timeSinceLastFetch < this.getRefreshPeriodMs(refreshPeriodDays)) {
           return {
             reserved: false,
             lastFetchedAt: fetchLog.lastFetchedAt,
@@ -428,6 +428,46 @@ export class SmartFetcher {
           nextFetchDate: reservation.nextFetchDate
         };
       } else {
+        const existingVerificationResult = await DiscountFetcher.verifyExistingCategoryStores(
+          categoryId,
+          categoryName,
+          country
+        );
+
+        if (existingVerificationResult.stats.totalStores > 0) {
+          await this.updateFetchLog(
+            categoryId,
+            {
+              totalStores: existingVerificationResult.stats.totalStores,
+              totalDiscounts: existingVerificationResult.stats.totalDiscounts,
+            },
+            fetchResult.errors.length > 0 ? 'partial' : 'success',
+            fetchResult.errors.join(', ') || 'No new AI stores were returned; verified existing category stores instead.'
+          );
+
+          return {
+            success: true,
+            message: `No new AI stores were returned for ${categoryName}; verified existing category stores instead.`,
+            data: existingVerificationResult.stores,
+            errors: fetchResult.errors,
+            stats: {
+              ...fetchResult.stats,
+              totalStores: existingVerificationResult.stats.totalStores,
+              totalDiscounts: existingVerificationResult.stats.totalDiscounts,
+              validStores: existingVerificationResult.stats.validStores,
+              validDiscounts: existingVerificationResult.stats.validDiscounts,
+              existingStoresVerified: existingVerificationResult.stats.totalStores,
+              existingVerificationErrors: existingVerificationResult.errors.length,
+              wasCached: false,
+              refreshPeriodDays: reservation.refreshPeriodDays,
+              fetchStatus: fetchResult.errors.length > 0 ? 'partial' : 'success',
+              duplicateFetchPrevented: false
+            },
+            wasCached: false,
+            nextFetchDate: reservation.nextFetchDate
+          };
+        }
+
         // Update fetch log with error
         await this.updateFetchLog(
           categoryId,

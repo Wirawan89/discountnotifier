@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { OfferVerifier } from './offer-verifier';
 
-const prisma = new PrismaClient();
+const EXISTING_STORE_VERIFY_CONCURRENCY = 3;
 
 // Types for consistent data structure
 export interface DiscountData {
@@ -40,7 +40,11 @@ export interface FetchResult {
 }
 
 function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'dining' | 'entertainment' | 'services' | 'travel' {
-  if (categoryName === 'Dining & Beverages' || categoryName === 'Caffe & Brunch') {
+  if (
+    categoryName === 'Dining & Beverages' ||
+    categoryName === 'Caffe & Brunch' ||
+    categoryName === 'Cultural Bites & Takeaway'
+  ) {
     return 'dining';
   }
 
@@ -48,7 +52,7 @@ function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'd
     return 'entertainment';
   }
 
-  if (categoryName === 'Financial & Services') {
+  if (categoryName === 'Financial & Services' || categoryName === 'Hobbies & Classes') {
     return 'services';
   }
 
@@ -58,6 +62,7 @@ function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'd
 
   if (
     categoryName === 'Sport Gears' ||
+    categoryName === 'Factory Outlets' ||
     categoryName === 'Music Gears' ||
     categoryName === 'Food & Groceries' ||
     categoryName === 'Cosmetic & Perfumes' ||
@@ -392,7 +397,13 @@ export class DiscountFetcher {
       console.log(
         `Verified offer wording for ${store.name} on ${storeResult.matchedUrl}: ${storeResult.matchedKeywords.join(', ')}`
       );
-      return store;
+      return {
+        ...store,
+        discounts: store.discounts.map((discount) => ({
+          ...discount,
+          eCatalog: storeResult.matchedUrl ? [storeResult.matchedUrl] : discount.eCatalog,
+        })),
+      };
     }
 
     const verifiedDiscounts: DiscountData[] = [];
@@ -405,7 +416,10 @@ export class DiscountFetcher {
       );
 
       if (discountResult.hasOffer) {
-        verifiedDiscounts.push(discount);
+        verifiedDiscounts.push({
+          ...discount,
+          eCatalog: discountResult.matchedUrl ? [discountResult.matchedUrl] : discount.eCatalog,
+        });
         console.log(
           `Verified offer wording for ${store.name} discount "${discount.title}" on ${discountResult.matchedUrl}: ${discountResult.matchedKeywords.join(', ')}`
         );
@@ -480,6 +494,10 @@ export class DiscountFetcher {
       const validStores = stores.length;
       const validDiscounts = stores.reduce((sum, store) => sum + store.discounts.length, 0);
 
+      if (validStores === 0 && errors.length === 0) {
+        errors.push('No valid stores were returned by the AI provider.');
+      }
+
       return {
         success: validStores > 0,
         stores,
@@ -541,9 +559,7 @@ export class DiscountFetcher {
       },
     });
 
-    const verifiedStores: StoreData[] = [];
-
-    for (const dbStore of dbStores) {
+    const verifyAndSaveStore = async (dbStore: (typeof dbStores)[number]): Promise<StoreData | null> => {
       try {
         const storeData: StoreData = {
           name: dbStore.name,
@@ -567,15 +583,24 @@ export class DiscountFetcher {
         };
 
         const verifiedStore = await this.keepOnlyVerifiedOffers(storeData, categoryName);
-        verifiedStores.push(verifiedStore);
         await this.saveToDatabase([verifiedStore], categoryId, dbStore.ownerId);
+        return verifiedStore;
       } catch (error) {
         const errorMessage = `Failed to verify existing store ${dbStore.name}: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`;
         errors.push(errorMessage);
         console.error(errorMessage);
+        return null;
       }
+    };
+
+    const verifiedStores: StoreData[] = [];
+
+    for (let index = 0; index < dbStores.length; index += EXISTING_STORE_VERIFY_CONCURRENCY) {
+      const batch = dbStores.slice(index, index + EXISTING_STORE_VERIFY_CONCURRENCY);
+      const batchResults = await Promise.all(batch.map((dbStore) => verifyAndSaveStore(dbStore)));
+      verifiedStores.push(...batchResults.filter((store): store is StoreData => Boolean(store)));
     }
 
     const totalDiscounts = verifiedStores.reduce((sum, store) => sum + store.discounts.length, 0);

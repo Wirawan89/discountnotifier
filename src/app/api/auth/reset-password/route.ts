@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { createHash } from "crypto";
 
-const prisma = new PrismaClient();
 
 const RESET_TOKEN_PREFIX = "password-reset:";
 

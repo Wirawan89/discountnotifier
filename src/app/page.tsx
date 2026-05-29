@@ -190,7 +190,14 @@ export default function Home() {
     return filtered;
   }, [discounts, favorites, searchTerm, selectedCategory?.name, selectedCountry, selectedSuburb, showFavoritesOnly, showNearMe, sortBy, stores, userLocation]);
 
-  const storesToShow = showAllStores ? filteredStores : filteredStores.slice(0, 8);
+  const shouldShowAllFilteredStores =
+    showAllStores ||
+    Boolean(searchTerm.trim()) ||
+    Boolean(selectedSuburb) ||
+    showNearMe ||
+    isSaleNearbyMode ||
+    isOffersNearbyMode;
+  const storesToShow = shouldShowAllFilteredStores ? filteredStores : filteredStores.slice(0, 8);
 
   const resetCategoryViewState = () => {
     setSelectedSuburb("");
@@ -481,11 +488,12 @@ export default function Home() {
         setSmartFetchResult(message + stats + cacheInfo);
         setTimeout(() => refreshCategoryData(selectedCategory), 1000);
       } else {
-        const errorMsg = data.error || 'Error fetching discounts';
+        const errorDetails = Array.isArray(data.details) ? data.details.join(' ') : data.details || '';
+        const errorMsg = `${data.error || 'Error fetching discounts'} ${errorDetails}`.trim();
         setSmartFetchResult(
           errorMsg.includes('credit') || errorMsg.includes('quota') || errorMsg.includes('rate limit')
             ? 'API limits reached - showing existing discounts. Try again later or check your API credits.'
-            : errorMsg
+            : data.error || 'Error fetching discounts'
         );
       }
     } catch (_error) {
@@ -557,7 +565,7 @@ export default function Home() {
               )}
               {isOffersNearbyMode && (
                 <p className="mb-4 text-sm text-gray-600">
-                  Showing brunch, dining and beverage offers near {offersNearbyLocation || "your location"}
+                  Showing brunch, dining, beverage and cultural bites offers near {offersNearbyLocation || "your location"}
                   {offersNearbySuburbs.length > 0 && ` (${offersNearbySuburbs.join(", ")})`}.
                 </p>
               )}
@@ -625,7 +633,7 @@ export default function Home() {
                 />
               )}
 
-              {!loadingStores && filteredStores.length > 8 && (
+              {!loadingStores && !shouldShowAllFilteredStores && filteredStores.length > 8 && (
                 <div className="text-center">
                   <button
                     type="button"

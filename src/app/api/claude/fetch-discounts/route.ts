@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { sendDiscountNotifications } from '../../../../lib/email';
 import { DiscountFetcher } from '../../../../lib/discount-fetcher';
 
-const prisma = new PrismaClient();
 
 // Helper to call Claude API
 async function callClaudeForCategory(categoryName: string): Promise<string> {

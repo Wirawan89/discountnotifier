@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
-const prisma = new PrismaClient();
 const DEFAULT_COUNTRY = "Australia";
 const MAX_NEARBY_SUBURBS = 2;
-const DINING_CATEGORY_NAMES = ["Caffe & Brunch", "Dining & Beverages"];
+const DINING_CATEGORY_NAMES = ["Caffe & Brunch", "Dining & Beverages", "Cultural Bites & Takeaway"];
 
 const NEARBY_SUBURBS: Record<string, string[]> = {
   sydney: ["Haymarket", "Surry Hills"],
@@ -138,7 +137,7 @@ export async function GET(request: Request) {
     const totalDiscounts = stores.reduce((sum, store) => sum + store.discounts.length, 0);
 
     return NextResponse.json({
-      message: `Found ${stores.length} brunch, dining and beverage stores with ${totalDiscounts} current offers near ${location}`,
+      message: `Found ${stores.length} brunch, dining, beverage and cultural bites stores with ${totalDiscounts} current offers near ${location}`,
       location,
       country,
       categories: DINING_CATEGORY_NAMES,

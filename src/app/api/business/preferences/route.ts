@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../auth/[...nextauth]/route";
 
-const prisma = new PrismaClient();
 const MAX_PROMOTION_MESSAGE_LENGTH = 96;
 const MAX_SHOWCASE_PAYLOAD_BYTES = 1_500_000;
 
@@ -28,6 +27,15 @@ function cleanImages(images: unknown) {
   return images
     .filter((image): image is string => typeof image === "string" && image.startsWith("data:image/"))
     .slice(0, 6);
+}
+
+function normalizeOptionalUrl(value: unknown) {
+  const rawUrl = String(value || "").trim();
+  if (!rawUrl) {
+    return null;
+  }
+
+  return /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
 }
 
 async function getBusinessForSession() {
@@ -93,6 +101,7 @@ export async function GET() {
       category: business.category,
       store: business.store,
       promotionMessage: business.promotionMessage,
+      promotionUrl: business.promotionUrl ?? "",
       promotionStartDate: formatDateInput(business.promotionStartDate),
       promotionEndDate: formatDateInput(business.promotionEndDate),
       showcaseImages: business.showcaseImages,
@@ -100,6 +109,8 @@ export async function GET() {
       aiImageTextPrompt: business.aiImageTextPrompt ?? "",
       membershipType: business.membershipType,
       status: business.status,
+      verificationStatus: business.verificationStatus,
+      subscriptionStatus: business.subscriptionStatus,
     });
   } catch (error) {
     console.error("Error fetching business preferences:", error);
@@ -121,6 +132,7 @@ export async function PUT(request: Request) {
     const { business } = result;
     const data = await request.json();
     const promotionMessage = String(data.promotionMessage || "").trim();
+    const promotionUrl = normalizeOptionalUrl(data.promotionUrl);
     const promotionStartDate = normalizeDate(data.promotionStartDate);
     const promotionEndDate = normalizeDate(data.promotionEndDate);
     const showcaseImages = cleanImages(data.showcaseImages);
@@ -154,6 +166,20 @@ export async function PUT(request: Request) {
       );
     }
 
+    if (promotionUrl) {
+      try {
+        const parsedPromotionUrl = new URL(promotionUrl);
+        if (!["http:", "https:"].includes(parsedPromotionUrl.protocol)) {
+          throw new Error("Invalid protocol");
+        }
+      } catch (_error) {
+        return NextResponse.json(
+          { error: "Promotion URL must be a valid website URL" },
+          { status: 400 }
+        );
+      }
+    }
+
     if (showcasePayloadBytes > MAX_SHOWCASE_PAYLOAD_BYTES) {
       return NextResponse.json(
         { error: "Showcase images are too large. Please upload smaller images or fewer images." },
@@ -168,6 +194,7 @@ export async function PUT(request: Request) {
         },
         data: {
           promotionMessage,
+          promotionUrl,
           promotionStartDate,
           promotionEndDate,
           showcaseImages,
@@ -182,11 +209,57 @@ export async function PUT(request: Request) {
             id: business.storeId,
           },
           data: {
-            catalogs: showcaseImages,
             background: showcaseImages[0] || null,
             description: `Business submitted promotion: ${promotionMessage}`,
           },
         });
+
+        const existingPromotion = await tx.promotion.findFirst({
+          where: {
+            businessId: business.id,
+            storeId: business.storeId,
+            source: {
+              startsWith: "business",
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+
+        if (existingPromotion) {
+          await tx.promotion.update({
+            where: {
+              id: existingPromotion.id,
+            },
+            data: {
+              message: promotionMessage,
+              url: promotionUrl,
+              startDate: promotionStartDate,
+              endDate: promotionEndDate,
+              status: "active",
+            },
+          });
+        } else {
+          await tx.promotion.create({
+            data: {
+              businessId: business.id,
+              storeId: business.storeId,
+              message: promotionMessage,
+              url: promotionUrl,
+              startDate: promotionStartDate,
+              endDate: promotionEndDate,
+              priority:
+                business.membershipType === "Platinum"
+                  ? 0
+                  : business.membershipType === "Gold"
+                    ? 1
+                    : 2,
+              status: "active",
+              source: "business",
+            },
+          });
+        }
 
         const existingDiscount = await tx.discount.findFirst({
           where: {
@@ -210,7 +283,7 @@ export async function PUT(request: Request) {
               description: `Business promotion submitted by ${business.businessName}`,
               startDate: promotionStartDate,
               endDate: promotionEndDate,
-              eCatalog: showcaseImages,
+              eCatalog: promotionUrl ? [promotionUrl] : showcaseImages,
             },
           });
         } else {
@@ -221,7 +294,7 @@ export async function PUT(request: Request) {
               description: `Business promotion submitted by ${business.businessName}`,
               startDate: promotionStartDate,
               endDate: promotionEndDate,
-              eCatalog: showcaseImages,
+              eCatalog: promotionUrl ? [promotionUrl] : showcaseImages,
             },
           });
         }
@@ -252,6 +325,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({
       id: updatedBusiness.id,
       promotionMessage: updatedBusiness.promotionMessage,
+      promotionUrl: updatedBusiness.promotionUrl ?? "",
       promotionStartDate: formatDateInput(updatedBusiness.promotionStartDate),
       promotionEndDate: formatDateInput(updatedBusiness.promotionEndDate),
       showcaseImages: updatedBusiness.showcaseImages,

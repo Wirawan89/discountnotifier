@@ -27,6 +27,7 @@ interface BusinessPreference {
   url: string;
   category: Category;
   promotionMessage: string;
+  promotionUrl: string;
   promotionStartDate: string;
   promotionEndDate: string;
   showcaseImages: string[];
@@ -42,6 +43,15 @@ const MAX_IMAGE_DIMENSION = 900;
 const IMAGE_QUALITY = 0.68;
 const inputClassName =
   "mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-green-500 focus:outline-none focus:ring-green-500";
+
+function normalizeOptionalUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
 
 function compressImage(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -360,6 +370,20 @@ export default function PreferencesPage() {
               />
               <p className="mt-1 text-xs text-gray-500">
                 {businessPreferences.promotionMessage.length}/{MAX_PROMOTION_MESSAGE_LENGTH} characters
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700">Promotion URL</label>
+              <input
+                type="url"
+                className={inputClassName}
+                placeholder="https://example.com.au/specials"
+                value={businessPreferences.promotionUrl}
+                onChange={(event) => updateBusinessPreference("promotionUrl", event.target.value)}
+                onBlur={() => updateBusinessPreference("promotionUrl", normalizeOptionalUrl(businessPreferences.promotionUrl))}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Optional direct page for this promotion. Offer cards will open this link first.
               </p>
             </div>
             <div>

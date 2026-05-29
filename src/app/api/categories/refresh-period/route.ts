@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { SmartFetcher } from '../../../../lib/smart-fetcher';
 
-const prisma = new PrismaClient();
 
 // GET: Get refresh period for a category or all categories
 export async function GET(request: Request) {

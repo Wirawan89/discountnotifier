@@ -210,7 +210,7 @@ export default function WelcomeShowcase() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {showcasePromotions.length > 0
           ? showcasePromotions.map((promotion, index) => {
-              const mainWebsiteUrl = getMainWebsiteUrl(promotion.store?.url || promotion.url);
+              const mainWebsiteUrl = getMainWebsiteUrl(promotion.promotionUrl || promotion.store?.url || promotion.url);
               const overlayText = getShowcaseOverlayText(promotion);
               const imageIndex = Math.min(
                 showcaseImageIndexes[promotion.id] ?? 0,
