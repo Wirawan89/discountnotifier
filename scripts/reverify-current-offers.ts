@@ -1,4 +1,6 @@
 import { PrismaClient } from "@prisma/client";
+import { updateCatalogUrlHealth } from "../src/lib/catalog-health";
+import { getLiveVerifiedOfferEndDate } from "../src/lib/offer-lifecycle";
 import { OfferVerifier } from "../src/lib/offer-verifier";
 
 const prisma = new PrismaClient();
@@ -65,8 +67,7 @@ function createGenericOffer(
   profile: "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel"
 ) {
   const startDate = new Date();
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + 7);
+  const endDate = getLiveVerifiedOfferEndDate(startDate);
   const hasEofyOffer = matchedKeywords.some((keyword) => /eofy|end of financial year/i.test(keyword));
   const hasHappyHour = matchedKeywords.some((keyword) => /happy hour/i.test(keyword));
 
@@ -154,6 +155,13 @@ async function main() {
         country: store.country,
         profile: getVerifierProfile(store.category.name),
       });
+      const { removedCatalogUrls } = await updateCatalogUrlHealth(prisma, store.id, store.catalogs, result);
+
+      if (removedCatalogUrls.length > 0) {
+        console.log(
+          `[catalog-prune] ${store.category.name} / ${store.name} removed inactive catalog URL(s): ${removedCatalogUrls.join(", ")}`
+        );
+      }
 
       if (result.hasOffer && result.matchedUrl) {
         const offer = createGenericOffer(
@@ -198,18 +206,24 @@ async function main() {
         country: store.country,
         profile: getVerifierProfile(store.category.name),
       });
+      const { removedCatalogUrls } = await updateCatalogUrlHealth(prisma, store.id, store.catalogs, result);
+
+      if (removedCatalogUrls.length > 0) {
+        console.log(
+          `[catalog-prune] ${store.category.name} / ${store.name} removed inactive catalog URL(s): ${removedCatalogUrls.join(", ")}`
+        );
+      }
 
       if (result.hasOffer) {
-        if (result.matchedUrl) {
-          await prisma.discount.update({
-            where: {
-              id: discount.id,
-            },
-            data: {
-              eCatalog: [result.matchedUrl],
-            },
-          });
-        }
+        await prisma.discount.update({
+          where: {
+            id: discount.id,
+          },
+          data: {
+            endDate: getLiveVerifiedOfferEndDate(),
+            ...(result.matchedUrl ? { eCatalog: [result.matchedUrl] } : {}),
+          },
+        });
 
         kept++;
         console.log(

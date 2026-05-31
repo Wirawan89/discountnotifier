@@ -44,23 +44,62 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Category ID is required' }, { status: 400 });
     }
 
+    const now = new Date();
+
     // Fetch existing stores and discounts for the category
     const stores = await prisma.store.findMany({
       where: {
         categoryId: parseInt(categoryId),
         ...buildCountryWhere(country),
+        OR: [
+          { sourceType: { not: 'google_business' } },
+          {
+            discounts: {
+              some: {
+                endDate: {
+                  gte: now,
+                },
+              },
+            },
+          },
+          {
+            promotions: {
+              some: {
+                status: 'active',
+                startDate: {
+                  lte: now,
+                },
+                endDate: {
+                  gte: now,
+                },
+              },
+            },
+          },
+        ],
       },
       include: {
         discounts: {
           where: {
             endDate: {
-              gte: new Date() // Only active discounts
+              gte: now // Only active discounts
             }
           },
           orderBy: {
             endDate: 'asc'
           }
-        }
+        },
+        promotions: {
+          where: {
+            status: 'active',
+            startDate: {
+              lte: now,
+            },
+            endDate: {
+              gte: now,
+            },
+          },
+          orderBy: [{ priority: 'desc' }, { endDate: 'asc' }],
+        },
       },
       orderBy: {
         name: 'asc'
@@ -69,13 +108,15 @@ export async function GET(request: Request) {
 
     const totalStores = stores.length;
     const totalDiscounts = stores.reduce((sum, store) => sum + store.discounts.length, 0);
+    const totalPromotions = stores.reduce((sum, store) => sum + store.promotions.length, 0);
 
     return NextResponse.json({
-      message: `Found ${totalStores} ${country} stores with ${totalDiscounts} active discounts`,
+      message: `Found ${totalStores} ${country} stores with ${totalDiscounts} active discounts and ${totalPromotions} merchant promotions`,
       stores,
       stats: {
         totalStores,
         totalDiscounts,
+        totalPromotions,
         categoryId: parseInt(categoryId),
         country,
       }

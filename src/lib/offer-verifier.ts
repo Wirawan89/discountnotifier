@@ -3,11 +3,20 @@ export type OfferVerificationResult = {
   matchedKeywords: string[];
   checkedUrls: string[];
   matchedUrl?: string;
+  failedCatalogUrls: FailedCatalogUrl[];
+};
+
+export type FailedCatalogUrl = {
+  url: string;
+  reason: "invalid" | "http" | "content-type" | "blocked" | "timeout" | "network";
+  status?: number;
 };
 
 export type OfferVerifierOptions = {
   country?: string;
   profile?: "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel";
+  maxPages?: number;
+  requestTimeoutMs?: number;
 };
 
 type UrlToCheck = {
@@ -20,6 +29,17 @@ type DiscoveredOfferLink = {
   url: string;
   priority: number;
 };
+
+type FetchPageResult =
+  | {
+      ok: true;
+      text: string;
+      html: string;
+    }
+  | {
+      ok: false;
+      failure: Omit<FailedCatalogUrl, "url">;
+    };
 
 const OFFER_KEYWORDS = [
   "discount",
@@ -247,7 +267,7 @@ const RETAIL_SHOP_STRONG_OFFER_KEYWORDS = new Set([
 ]);
 
 const NON_OFFER_PAGE_PATTERN =
-  /(linktr\.ee|darlingharbour\.com\/(?:offers|what'?s-on|whats-on)|sluurpy\.com\/(?:special-)?offers?|chatswoodinterchange\.com\/happy-hour|casuarinasquare\.com\.au\/offers|dealer|distributor|find[-\s]?store|store[-\s]?locator|\/(?:pages\/)?stores?(?:[/?#]|$)|store[-\s]?locations?|service[-\s]?center|support|warranty|manual|faq|help[-\s]?centre|help[-\s]?center|ordering|news|press|article|donate|donation|fundraising|terms|conditions|privacy|policy)/i;
+  /(linktr\.ee|darlingharbour\.com\/(?:offers|what'?s-on|whats-on)|sluurpy\.com\/(?:special-)?offers?|chatswoodinterchange\.com\/happy-hour|casuarinasquare\.com\.au\/offers|what[-\s]?we[-\s]?offer|dealer|distributor|find[-\s]?store|store[-\s]?locator|\/(?:pages\/)?stores?(?:[/?#]|$)|store[-\s]?locations?|service[-\s]?center|support|warranty|manual|faq|help[-\s]?centre|help[-\s]?center|ordering|news|press|article|donate|donation|fundraising|terms|conditions|privacy|policy)/i;
 
 const OFFER_LINK_PATTERN =
   /(discount|sale|clearance|clerance|clearence|deal|hot[-\s]?deal|happy[-\s]?hour|eofy|end[-\s]?of[-\s]?financial[-\s]?year|special|special[-\s]?price|limited[-\s]?time[-\s]?offer|offer|view[-\s]?(?:offer|offers|deal|deals)|promo|promotion|outlet|catalogue|catalog|what'?s[-\s]?on|markdown|marcdown|reduced|save|package|flight\s*\+\s*hotel|buy\s+one\s+get\s+one|bogo|2\s*for\s*1|free[-\s]?night|\$\s*\d+\s*off|\d+%\s*off|(?:1\/2|half)\s*price|off\s+rrp)/i;
@@ -901,9 +921,9 @@ function extractOfferLinks(html: string, pageUrl: string): string[] {
     .map((link) => link.url);
 }
 
-async function fetchPage(url: string): Promise<{ text: string; html: string } | null> {
+async function fetchPage(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<FetchPageResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
@@ -916,24 +936,50 @@ async function fetchPage(url: string): Promise<{ text: string; html: string } | 
     });
 
     if (!response.ok) {
-      return null;
+      return {
+        ok: false,
+        failure: {
+          reason: "http",
+          status: response.status,
+        },
+      };
     }
 
     const contentType = response.headers.get("content-type") || "";
     if (contentType && !contentType.includes("text/html") && !contentType.includes("text/plain")) {
-      return null;
+      return {
+        ok: false,
+        failure: {
+          reason: "content-type",
+          status: response.status,
+        },
+      };
     }
 
     const html = await response.text();
     const text = stripHtml(html);
 
     if (isBlockedOrUnavailablePage(text)) {
-      return null;
+      return {
+        ok: false,
+        failure: {
+          reason: "blocked",
+          status: response.status,
+        },
+      };
     }
 
-    return { html, text };
-  } catch {
-    return null;
+    return { ok: true, html, text };
+  } catch (error) {
+    return {
+      ok: false,
+      failure: {
+        reason:
+          error instanceof Error && error.name === "AbortError"
+            ? "timeout"
+            : "network",
+      },
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -1021,17 +1067,29 @@ export class OfferVerifier {
   ): Promise<OfferVerificationResult> {
     const normalizedStoreUrl = normalizeUrl(storeUrl);
     const checkedUrls: string[] = [];
+    const failedCatalogUrls: FailedCatalogUrl[] = [];
     const queuedUrls = new Set<string>();
     const urlsToCheck: UrlToCheck[] = [];
+    const maxPages = Math.max(1, options.maxPages ?? MAX_PAGES_TO_CHECK);
+    const requestTimeoutMs = Math.max(1000, options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS);
 
     if (normalizedStoreUrl) {
       queueUrl(normalizedStoreUrl, 1, "store", queuedUrls, urlsToCheck);
     }
 
-    catalogUrls
-      .map(normalizeUrl)
-      .filter((url): url is string => Boolean(url))
-      .forEach((url) => queueUrl(url, 2, "catalog", queuedUrls, urlsToCheck));
+    for (const catalogUrl of catalogUrls) {
+      const normalizedCatalogUrl = normalizeUrl(catalogUrl);
+
+      if (!normalizedCatalogUrl) {
+        failedCatalogUrls.push({
+          url: catalogUrl,
+          reason: "invalid",
+        });
+        continue;
+      }
+
+      queueUrl(normalizedCatalogUrl, 2, "catalog", queuedUrls, urlsToCheck);
+    }
 
     if (normalizedStoreUrl) {
       const commonOfferUrls = new Set<string>();
@@ -1039,19 +1097,26 @@ export class OfferVerifier {
       commonOfferUrls.forEach((url) => queueUrl(url, 2, "common", queuedUrls, urlsToCheck));
     }
 
-    for (let index = 0; index < urlsToCheck.length && checkedUrls.length < MAX_PAGES_TO_CHECK; index++) {
+    for (let index = 0; index < urlsToCheck.length && checkedUrls.length < maxPages; index++) {
       const current = urlsToCheck[index];
       checkedUrls.push(current.url);
-      const page = await fetchPage(current.url);
+      const page = await fetchPage(current.url, requestTimeoutMs);
 
-      if (!page) {
+      if (!page.ok) {
+        if (current.source === "catalog") {
+          failedCatalogUrls.push({
+            url: current.url,
+            ...page.failure,
+          });
+          continue;
+        }
+
         const matchedKeywords = findKeywordsInUrl(current.url);
         const canTrustOfferUrl =
-          current.source === "catalog" ||
-          (options.profile !== "retailShop" && current.source === "discovered");
+          options.profile !== "retailShop" && current.source === "discovered";
         const hasTrustedRetailShopCatalogUrl =
           options.profile === "retailShop" &&
-          (current.source === "catalog" || current.source === "store") &&
+          current.source === "store" &&
           hasTrustedRetailShopOfferIntentInUrl(current.url);
 
         if (
@@ -1066,6 +1131,7 @@ export class OfferVerifier {
             matchedKeywords,
             checkedUrls,
             matchedUrl: current.url,
+            failedCatalogUrls,
           };
         }
 
@@ -1102,6 +1168,7 @@ export class OfferVerifier {
           matchedKeywords,
           checkedUrls,
           matchedUrl: current.url,
+          failedCatalogUrls,
         };
       }
 
@@ -1118,6 +1185,7 @@ export class OfferVerifier {
       hasOffer: false,
       matchedKeywords: [],
       checkedUrls,
+      failedCatalogUrls,
     };
   }
 }

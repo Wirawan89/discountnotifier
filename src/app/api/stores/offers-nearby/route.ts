@@ -9,6 +9,13 @@ const NEARBY_SUBURBS: Record<string, string[]> = {
   sydney: ["Haymarket", "Surry Hills"],
   haymarket: ["Sydney", "Surry Hills"],
   "surry hills": ["Sydney", "Haymarket"],
+  cabramatta: ["Canley Vale", "Fairfield"],
+  "canley vale": ["Cabramatta", "Fairfield"],
+  fairfield: ["Cabramatta", "Canley Vale"],
+  liverpool: ["Cabramatta", "Fairfield"],
+  bankstown: ["Cabramatta", "Burwood"],
+  chatswood: ["Artarmon", "North Sydney"],
+  burwood: ["Strathfield", "Ashfield"],
   mascot: ["Sydney", "Rosebery"],
   rosebery: ["Mascot", "Sydney"],
   leichhardt: ["Sydney", "Haymarket"],
@@ -61,11 +68,8 @@ function pickNearbySuburbs(location: string, availableSuburbs: string[]) {
     )
     .filter((suburb): suburb is string => Boolean(suburb))
     .filter((suburb) => normalizeSuburb(suburb) !== normalizeSuburb(exactSuburb));
-  const fallbackNearby = availableSuburbs
-    .filter((suburb) => normalizeSuburb(suburb) !== normalizeSuburb(exactSuburb))
-    .filter((suburb) => !nearby.some((nearbySuburb) => normalizeSuburb(nearbySuburb) === normalizeSuburb(suburb)));
 
-  return [exactSuburb, ...nearby, ...fallbackNearby].slice(0, MAX_NEARBY_SUBURBS + 1);
+  return [exactSuburb, ...nearby].slice(0, MAX_NEARBY_SUBURBS + 1);
 }
 
 export async function GET(request: Request) {
@@ -78,6 +82,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Location is required" }, { status: 400 });
     }
 
+    const now = new Date();
     const countryWhere = buildCountryWhere(country);
     const categoryWhere = {
       category: {
@@ -110,34 +115,67 @@ export async function GET(request: Request) {
         suburb: {
           in: suburbs,
         },
-        discounts: {
-          some: {
-            endDate: {
-              gte: new Date(),
+        OR: [
+          {
+            discounts: {
+              some: {
+                endDate: {
+                  gte: now,
+                },
+              },
             },
           },
-        },
+          {
+            promotions: {
+              some: {
+                status: "active",
+                startDate: {
+                  lte: now,
+                },
+                endDate: {
+                  gte: now,
+                },
+              },
+            },
+          },
+        ],
       },
       include: {
         category: true,
         discounts: {
           where: {
             endDate: {
-              gte: new Date(),
+              gte: now,
             },
           },
           orderBy: {
             endDate: "asc",
           },
         },
+        promotions: {
+          where: {
+            status: "active",
+            startDate: {
+              lte: now,
+            },
+            endDate: {
+              gte: now,
+            },
+          },
+          orderBy: [{ priority: "desc" }, { endDate: "asc" }],
+        },
       },
       orderBy: [{ suburb: "asc" }, { name: "asc" }],
     });
 
     const totalDiscounts = stores.reduce((sum, store) => sum + store.discounts.length, 0);
+    const totalPromotions = stores.reduce((sum, store) => sum + store.promotions.length, 0);
 
     return NextResponse.json({
-      message: `Found ${stores.length} brunch, dining, beverage and cultural bites stores with ${totalDiscounts} current offers near ${location}`,
+      message:
+        stores.length > 0
+          ? `Found ${stores.length} brunch, dining, beverage and cultural bites stores with ${totalDiscounts} current offers and ${totalPromotions} merchant promotions near ${location}`
+          : `No sale or offer stores found near ${location}. To learn or browse the stores near you, use Categories and select Near me.`,
       location,
       country,
       categories: DINING_CATEGORY_NAMES,
@@ -146,6 +184,7 @@ export async function GET(request: Request) {
       stats: {
         totalStores: stores.length,
         totalDiscounts,
+        totalPromotions,
       },
     });
   } catch (error) {

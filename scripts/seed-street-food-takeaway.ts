@@ -1,4 +1,6 @@
 import { PrismaClient } from "@prisma/client";
+import { updateCatalogUrlHealth } from "../src/lib/catalog-health";
+import { getLiveVerifiedOfferEndDate } from "../src/lib/offer-lifecycle";
 import { OfferVerifier } from "../src/lib/offer-verifier";
 
 const prisma = new PrismaClient();
@@ -679,8 +681,7 @@ const newlyAddedStoreNames = new Set([
 
 function createOffer(storeName: string, matchedUrl: string, matchedKeywords: string[]) {
   const startDate = new Date();
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + 7);
+  const endDate = getLiveVerifiedOfferEndDate(startDate);
 
   const title = matchedKeywords.some((keyword) => /happy hour/i.test(keyword))
     ? `${storeName} Happy Hour and Special Offers`
@@ -777,6 +778,11 @@ async function main() {
       country: "Australia",
       profile: "dining",
     });
+    const { removedCatalogUrls } = await updateCatalogUrlHealth(prisma, savedStore.id, [...store.catalogs], result);
+
+    if (removedCatalogUrls.length > 0) {
+      console.log(`catalog-prune: ${store.name} -> ${removedCatalogUrls.join(", ")}`);
+    }
 
     if (result.hasOffer && result.matchedUrl) {
       const offer = createOffer(store.name, result.matchedUrl, result.matchedKeywords);

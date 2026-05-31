@@ -9,9 +9,20 @@ export type Store = {
   suburb: string;
   city?: string | null;
   country?: string | null;
+  state?: string | null;
+  address?: string | null;
+  contact?: string | null;
   url: string;
+  sourceType?: string | null;
+  googleBusinessUrl?: string | null;
+  websiteUrl?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationSource?: string | null;
   background?: string | null;
   categoryId: number;
+  discounts?: Discount[];
+  promotions?: StorePromotion[];
 };
 
 export type Discount = {
@@ -24,6 +35,17 @@ export type Discount = {
   image?: string | null;
   coupon?: string | null;
   eCatalog?: string[];
+};
+
+export type StorePromotion = {
+  id: number;
+  storeId: number;
+  message: string;
+  url?: string | null;
+  startDate: string;
+  endDate: string;
+  priority?: number;
+  status?: string;
 };
 
 export type ShareData = {

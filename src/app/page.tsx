@@ -13,6 +13,86 @@ import type { Category, Discount, ShareData, Store } from '@/components/discount
 const DEFAULT_COUNTRY = "Australia";
 const BASE_COUNTRIES = [DEFAULT_COUNTRY, "New Zealand", "United States"];
 const DEFAULT_LOCATION_SUBURB = "Sydney";
+const DISTANCE_RANGES = [
+  { id: "0-2", label: "0 - 2 KM", min: 0, max: 2 },
+  { id: "2-6", label: "2 - 6 KM", min: 2, max: 6 },
+  { id: "6-plus", label: "> 6 KM", min: 6, max: Number.POSITIVE_INFINITY },
+] as const;
+const UNRANKED_DISTANCE_RANGE = {
+  id: "unranked",
+  label: "Not distance-ranked",
+} as const;
+
+type Coordinates = {
+  lat: number;
+  lng: number;
+};
+
+type DistanceRangeId = (typeof DISTANCE_RANGES)[number]["id"] | typeof UNRANKED_DISTANCE_RANGE.id | "";
+
+const LOCATION_COORDINATES: Record<string, Coordinates> = {
+  acton: { lat: -35.2777, lng: 149.1189 },
+  adelaide: { lat: -34.9285, lng: 138.6007 },
+  alexandria: { lat: -33.9022, lng: 151.2004 },
+  artarmon: { lat: -33.8088, lng: 151.1852 },
+  ashfield: { lat: -33.8883, lng: 151.1227 },
+  bankstown: { lat: -33.9173, lng: 151.0359 },
+  belconnen: { lat: -35.2384, lng: 149.0652 },
+  "bondi beach": { lat: -33.8915, lng: 151.2767 },
+  braddon: { lat: -35.2706, lng: 149.1351 },
+  brisbane: { lat: -27.4698, lng: 153.0251 },
+  "brisbane city": { lat: -27.4698, lng: 153.0251 },
+  broadbeach: { lat: -28.0293, lng: 153.4317 },
+  "brunswick east": { lat: -37.7728, lng: 144.9731 },
+  burleigh: { lat: -28.089, lng: 153.45 },
+  "burleigh heads": { lat: -28.089, lng: 153.45 },
+  burwood: { lat: -33.877, lng: 151.103 },
+  cabramatta: { lat: -33.8949, lng: 150.9344 },
+  "canberra city": { lat: -35.2809, lng: 149.13 },
+  "canley vale": { lat: -33.8869, lng: 150.9439 },
+  carlton: { lat: -37.8001, lng: 144.9671 },
+  chatswood: { lat: -33.7969, lng: 151.1833 },
+  chippendale: { lat: -33.8867, lng: 151.2 },
+  "chirn park": { lat: -27.9555, lng: 153.4028 },
+  collingwood: { lat: -37.8021, lng: 144.9883 },
+  cottesloe: { lat: -31.9959, lng: 115.7597 },
+  darlinghurst: { lat: -33.879, lng: 151.22 },
+  darwin: { lat: -12.4634, lng: 130.8456 },
+  "darwin city": { lat: -12.4634, lng: 130.8456 },
+  deakin: { lat: -35.318, lng: 149.107 },
+  dickson: { lat: -35.25, lng: 149.139 },
+  fairfield: { lat: -33.8674, lng: 150.9568 },
+  fitzroy: { lat: -37.7984, lng: 144.9783 },
+  footscray: { lat: -37.7998, lng: 144.8996 },
+  "fortitude valley": { lat: -27.4571, lng: 153.0343 },
+  fremantle: { lat: -32.0569, lng: 115.7439 },
+  haymarket: { lat: -33.8792, lng: 151.2048 },
+  highgate: { lat: -31.9398, lng: 115.8717 },
+  hobart: { lat: -42.8821, lng: 147.3272 },
+  hurstville: { lat: -33.9678, lng: 151.1055 },
+  liverpool: { lat: -33.9209, lng: 150.9238 },
+  marrickville: { lat: -33.9106, lng: 151.1559 },
+  melbourne: { lat: -37.8136, lng: 144.9631 },
+  newtown: { lat: -33.8974, lng: 151.178 },
+  "north sydney": { lat: -33.839, lng: 151.207 },
+  northbridge: { lat: -31.946, lng: 115.8589 },
+  parramatta: { lat: -33.815, lng: 151.0011 },
+  perth: { lat: -31.9523, lng: 115.8613 },
+  pyrmont: { lat: -33.869, lng: 151.194 },
+  redfern: { lat: -33.8928, lng: 151.2042 },
+  rosebery: { lat: -33.9197, lng: 151.2035 },
+  salamanca: { lat: -42.8864, lng: 147.3318 },
+  strathfield: { lat: -33.8713, lng: 151.0947 },
+  surry: { lat: -33.8845, lng: 151.2125 },
+  "surry hills": { lat: -33.8845, lng: 151.2125 },
+  sydney: { lat: -33.8688, lng: 151.2093 },
+  ultimo: { lat: -33.8816, lng: 151.1984 },
+  unley: { lat: -34.95, lng: 138.607 },
+  "west end": { lat: -27.4813, lng: 153.0097 },
+  "west leederville": { lat: -31.9413, lng: 115.8315 },
+  "west perth": { lat: -31.9488, lng: 115.8414 },
+  woolloongabba: { lat: -27.4869, lng: 153.036 },
+};
 
 function normalizeCountry(country?: string | null) {
   if (!country || country.trim().length === 0) {
@@ -36,6 +116,88 @@ function normalizeLocation(value?: string | null) {
   return value?.trim().toLowerCase() || "";
 }
 
+function getLocationCoordinates(value?: string | null) {
+  return LOCATION_COORDINATES[normalizeLocation(value)];
+}
+
+function isGenericCityLocation(store: Store) {
+  const suburb = normalizeLocation(store.suburb);
+  const city = normalizeLocation(store.city);
+
+  return Boolean(suburb && city && suburb === city);
+}
+
+function getStoreLocationQuality(store: Store) {
+  if (typeof store.latitude === "number" && typeof store.longitude === "number") {
+    return store.locationSource || "exact";
+  }
+
+  if (store.locationSource === "online" || store.locationSource === "city" || store.locationSource === "unknown") {
+    return store.locationSource;
+  }
+
+  if (isGenericCityLocation(store)) {
+    return "city";
+  }
+
+  if (getLocationCoordinates(store.suburb)) {
+    return "suburb";
+  }
+
+  return "unknown";
+}
+
+function getStoreCoordinates(store: Store) {
+  if (typeof store.latitude === "number" && typeof store.longitude === "number") {
+    return {
+      lat: store.latitude,
+      lng: store.longitude,
+    };
+  }
+
+  if (getStoreLocationQuality(store) !== "suburb") {
+    return undefined;
+  }
+
+  return getLocationCoordinates(store.suburb);
+}
+
+function distanceKm(from: Coordinates, to: Coordinates) {
+  const earthRadiusKm = 6371;
+  const latDistance = ((to.lat - from.lat) * Math.PI) / 180;
+  const lngDistance = ((to.lng - from.lng) * Math.PI) / 180;
+  const fromLat = (from.lat * Math.PI) / 180;
+  const toLat = (to.lat * Math.PI) / 180;
+  const haversine =
+    Math.sin(latDistance / 2) * Math.sin(latDistance / 2) +
+    Math.cos(fromLat) * Math.cos(toLat) * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function getStoreDestination(store: Store) {
+  return [store.address, store.name, store.suburb, store.city, store.country || DEFAULT_COUNTRY]
+    .filter((part): part is string => Boolean(part && part.trim().length > 0))
+    .join(", ");
+}
+
+function getWalkingMapUrl(origin: string, storesToMap: Store[]) {
+  const destinations = storesToMap.map(getStoreDestination).filter(Boolean);
+  const [destination, ...waypoints] = destinations;
+  const params = new URLSearchParams({
+    api: "1",
+    travelmode: "walking",
+    origin,
+    destination: destination || origin,
+  });
+
+  if (waypoints.length > 0) {
+    params.set("waypoints", waypoints.join("|"));
+  }
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -50,6 +212,8 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [userLocation, setUserLocation] = useState("");
+  const [userCoordinates, setUserCoordinates] = useState<Coordinates | null>(null);
+  const [selectedDistanceRange, setSelectedDistanceRange] = useState<DistanceRangeId>("");
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [showNearMe, setShowNearMe] = useState(false);
   const [favorites, setFavorites] = useState<number[]>([]);
@@ -118,6 +282,21 @@ export default function Home() {
     [stores]
   );
 
+  const nearbyOriginCoordinates = useMemo(
+    () => userCoordinates || getLocationCoordinates(userLocation),
+    [userCoordinates, userLocation]
+  );
+
+  const getStoreDistanceKm = (store: Store) => {
+      const storeCoordinates = getStoreCoordinates(store);
+
+    if (!nearbyOriginCoordinates || !storeCoordinates) {
+      return null;
+    }
+
+    return distanceKm(nearbyOriginCoordinates, storeCoordinates);
+  };
+
   const filteredStores = useMemo(() => {
     let filtered = stores.filter((store) => normalizeCountry(store.country) === selectedCountry);
 
@@ -169,6 +348,26 @@ export default function Home() {
       filtered = filtered.filter((store) => favorites.includes(store.id));
     }
 
+    if ((isSaleNearbyMode || isOffersNearbyMode) && selectedDistanceRange) {
+      if (selectedDistanceRange === UNRANKED_DISTANCE_RANGE.id) {
+        filtered = filtered.filter((store) => getStoreDistanceKm(store) === null);
+      } else {
+        const selectedRange = DISTANCE_RANGES.find((range) => range.id === selectedDistanceRange);
+
+        if (selectedRange) {
+          filtered = filtered.filter((store) => {
+            const storeDistance = getStoreDistanceKm(store);
+
+            if (storeDistance === null) {
+              return false;
+            }
+
+            return storeDistance >= selectedRange.min && storeDistance < selectedRange.max;
+          });
+        }
+      }
+    }
+
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "name":
@@ -188,7 +387,7 @@ export default function Home() {
     });
 
     return filtered;
-  }, [discounts, favorites, searchTerm, selectedCategory?.name, selectedCountry, selectedSuburb, showFavoritesOnly, showNearMe, sortBy, stores, userLocation]);
+  }, [discounts, favorites, isOffersNearbyMode, isSaleNearbyMode, nearbyOriginCoordinates, searchTerm, selectedCategory?.name, selectedCountry, selectedDistanceRange, selectedSuburb, showFavoritesOnly, showNearMe, sortBy, stores, userLocation]);
 
   const shouldShowAllFilteredStores =
     showAllStores ||
@@ -198,6 +397,37 @@ export default function Home() {
     isSaleNearbyMode ||
     isOffersNearbyMode;
   const storesToShow = shouldShowAllFilteredStores ? filteredStores : filteredStores.slice(0, 8);
+  const nearbyDistanceSummary = useMemo(() => {
+    if (!isSaleNearbyMode && !isOffersNearbyMode) {
+      return DISTANCE_RANGES.map((range) => ({ ...range, count: 0 }));
+    }
+
+    return DISTANCE_RANGES.map((range) => ({
+      ...range,
+      count: stores.filter((store) => {
+        if (normalizeCountry(store.country) !== selectedCountry) {
+          return false;
+        }
+
+        const storeDistance = getStoreDistanceKm(store);
+
+        if (storeDistance === null) {
+          return false;
+        }
+
+        return storeDistance >= range.min && storeDistance < range.max;
+      }).length,
+    }));
+  }, [isOffersNearbyMode, isSaleNearbyMode, nearbyOriginCoordinates, selectedCountry, stores]);
+  const nearbyStoresWithKnownDistance = nearbyDistanceSummary.reduce((sum, range) => sum + range.count, 0);
+  const unrankedNearbyStoresCount = stores.filter(
+    (store) => normalizeCountry(store.country) === selectedCountry && getStoreDistanceKm(store) === null
+  ).length;
+  const nearbyMapStores = filteredStores.filter((store) => getStoreDistanceKm(store) !== null).slice(0, 20);
+  const nearbyMapOrigin = nearbyOriginCoordinates
+    ? `${nearbyOriginCoordinates.lat},${nearbyOriginCoordinates.lng}`
+    : userLocation || saleNearbyLocation || offersNearbyLocation || DEFAULT_LOCATION_SUBURB;
+  const nearbyMapUrl = getWalkingMapUrl(nearbyMapOrigin, nearbyMapStores);
 
   const resetCategoryViewState = () => {
     setSelectedSuburb("");
@@ -205,6 +435,7 @@ export default function Home() {
     setSearchTerm("");
     setShowNearMe(false);
     setShowFavoritesOnly(false);
+    setSelectedDistanceRange("");
     setIsSaleNearbyMode(false);
     setSaleNearbyLocation("");
     setSaleNearbySuburbs([]);
@@ -220,6 +451,7 @@ export default function Home() {
     setSelectedSuburb("");
     setShowAllStores(false);
     setShowNearMe(false);
+    setSelectedDistanceRange("");
     setIsSaleNearbyMode(false);
     setSaleNearbyLocation("");
     setSaleNearbySuburbs([]);
@@ -238,6 +470,7 @@ export default function Home() {
       setShowNearMe(false);
       setShowFavoritesOnly(false);
       setShowAllStores(false);
+      setSelectedDistanceRange("");
     }
   };
 
@@ -246,22 +479,25 @@ export default function Home() {
     setLoadingDiscounts(true);
 
     setTimeout(() => {
-      fetch('/api/stores')
+      fetch(`/api/stores?categoryId=${category.id}&country=${encodeURIComponent(selectedCountry)}`)
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data)) {
-            setStores(data.filter((store: Store) => store.categoryId === category.id));
+            setStores(data);
+            setDiscounts(data.flatMap((store: Store) => store.discounts || []));
           } else {
             setStores([]);
+            setDiscounts([]);
             console.error('Failed to fetch stores:', data.error || data, data.details || '');
           }
+        })
+        .catch((error) => {
+          setStores([]);
+          setDiscounts([]);
+          console.error('Failed to fetch stores:', error);
+        })
+        .finally(() => {
           setLoadingStores(false);
-        });
-
-      fetch('/api/discounts')
-        .then((res) => res.json())
-        .then((data) => {
-          setDiscounts(data);
           setLoadingDiscounts(false);
         });
     }, 500);
@@ -270,6 +506,12 @@ export default function Home() {
   const handleCategoryClick = (category: Category) => {
     setSelectedCategory(category);
     resetCategoryViewState();
+    fetch('/api/analytics/access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'view_category', categoryId: category.id }),
+      keepalive: true,
+    }).catch(() => {});
     refreshCategoryData(category);
   };
 
@@ -283,6 +525,7 @@ export default function Home() {
     setSelectedSuburb("");
     setShowNearMe(true);
     setShowAllStores(false);
+    setSelectedDistanceRange("");
   };
 
   const getUserLocation = (): Promise<string | null> => {
@@ -296,6 +539,7 @@ export default function Home() {
 
       if (suburb) {
         setUserLocation(suburb);
+        setUserCoordinates((currentCoordinates) => currentCoordinates || getLocationCoordinates(suburb) || null);
         return suburb;
       }
 
@@ -310,7 +554,11 @@ export default function Home() {
 
     return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
-        () => {
+        (position) => {
+          setUserCoordinates({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
           const suburb = askForSuburb();
           setIsLoadingLocation(false);
           resolve(suburb);
@@ -358,6 +606,7 @@ export default function Home() {
     setShowAllStores(false);
     setShowNearMe(false);
     setShowFavoritesOnly(false);
+    setSelectedDistanceRange("");
 
     try {
       const response = await fetch(
@@ -423,6 +672,7 @@ export default function Home() {
     setShowAllStores(false);
     setShowNearMe(false);
     setShowFavoritesOnly(false);
+    setSelectedDistanceRange("");
 
     try {
       const response = await fetch(
@@ -531,6 +781,7 @@ export default function Home() {
     setSelectedSuburb("");
     setShowNearMe(false);
     setShowFavoritesOnly(false);
+    setSelectedDistanceRange("");
   };
 
   return (
@@ -601,6 +852,74 @@ export default function Home() {
                 onShowExisting={handleShowExisting}
               />
 
+              {(isSaleNearbyMode || isOffersNearbyMode) && !loadingStores && stores.length > 0 && (
+                <div className="mb-5 rounded-lg border border-red-100 bg-white p-3 shadow-sm sm:p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Distance grouping</p>
+                      <p className="text-xs text-gray-500">
+                        Approximate walking range from {userLocation || "your location"}. Generic city-only stores are not grouped until exact coordinates are added.
+                        {nearbyStoresWithKnownDistance < stores.length &&
+                          ` ${stores.length - nearbyStoresWithKnownDistance} store(s) need exact location data.`}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDistanceRange("")}
+                        className={`rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                          selectedDistanceRange === ""
+                            ? "bg-gray-900 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        All ({stores.length})
+                      </button>
+                      {nearbyDistanceSummary.map((range) => (
+                        <button
+                          key={range.id}
+                          type="button"
+                          onClick={() => setSelectedDistanceRange(range.id)}
+                          className={`rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                            selectedDistanceRange === range.id
+                              ? "bg-red-600 text-white"
+                              : "bg-red-50 text-red-700 hover:bg-red-100"
+                          }`}
+                        >
+                          {range.label} ({range.count})
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDistanceRange(UNRANKED_DISTANCE_RANGE.id)}
+                        className={`rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                          selectedDistanceRange === UNRANKED_DISTANCE_RANGE.id
+                            ? "bg-amber-600 text-white"
+                            : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        }`}
+                      >
+                        {UNRANKED_DISTANCE_RANGE.label} ({unrankedNearbyStoresCount})
+                      </button>
+                      {nearbyMapStores.length > 0 ? (
+                        <a
+                          href={nearbyMapUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-md bg-blue-600 px-3 py-2 text-center text-sm font-medium text-white transition-colors duration-200 hover:bg-blue-700"
+                        >
+                          Show Map{filteredStores.length > 20 ? " (first 20)" : ""}
+                        </a>
+                      ) : (
+                        <span className="rounded-md bg-gray-100 px-3 py-2 text-center text-sm font-medium text-gray-400">
+                          Show Map
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {loadingStores && (
                 <div className="flex justify-center items-center py-12">
                   <div className="text-center">
@@ -617,6 +936,12 @@ export default function Home() {
                   {searchTerm && ` for "${searchTerm}"`}
                   {isSaleNearbyMode && saleNearbyLocation && ` near ${saleNearbyLocation}`}
                   {isOffersNearbyMode && offersNearbyLocation && ` near ${offersNearbyLocation}`}
+                  {selectedDistanceRange &&
+                    ` (${
+                      selectedDistanceRange === UNRANKED_DISTANCE_RANGE.id
+                        ? UNRANKED_DISTANCE_RANGE.label
+                        : DISTANCE_RANGES.find((range) => range.id === selectedDistanceRange)?.label
+                    })`}
                   {!isSaleNearbyMode && !isOffersNearbyMode && showNearMe && userLocation && ` near ${userLocation}`}
                   {showFavoritesOnly && ` (${favorites.length} favorites)`}
                 </div>
@@ -653,6 +978,8 @@ export default function Home() {
                   selectedSuburb={selectedSuburb}
                   showFavoritesOnly={showFavoritesOnly}
                   showNearMe={showNearMe}
+                  isSaleNearbyMode={isSaleNearbyMode}
+                  isOffersNearbyMode={isOffersNearbyMode}
                   userLocation={userLocation}
                   onClearFilters={clearFilters}
                 />

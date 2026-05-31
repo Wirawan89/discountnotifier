@@ -1,5 +1,10 @@
 import { prisma } from '@/lib/prisma';
-import { DiscountFetcher } from './discount-fetcher';
+import {
+  DiscountFetcher,
+  SMART_FETCH_MAX_PAGES_PER_STORE,
+  SMART_FETCH_REQUEST_TIMEOUT_MS,
+  SMART_FETCH_VERIFY_CONCURRENCY,
+} from './discount-fetcher';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FETCH_LOCK_TTL_MS = 15 * 60 * 1000;
@@ -111,7 +116,7 @@ export class SmartFetcher {
         const fetchingStartedRecently =
           fetchLog.fetchStatus === 'fetching' &&
           now.getTime() - fetchLog.updatedAt.getTime() < FETCH_LOCK_TTL_MS;
-        const lastAttemptFailed = fetchLog.fetchStatus === 'failed';
+        const lastAttemptFailed = fetchLog.fetchStatus === 'failed' || fetchLog.fetchStatus === 'partial';
 
         if (fetchingStartedRecently) {
           return {
@@ -334,13 +339,17 @@ export class SmartFetcher {
   }
 
   /**
-   * Smart fetch function that checks cache before making API calls
+   * Smart fetch function that refreshes existing DB stores with the cheap live verifier.
+   *
+   * This intentionally avoids AI/provider calls by default. New store discovery should be
+   * handled by a separate, explicit deep-discovery flow so normal user refreshes do not
+   * burn tokens.
    */
   static async smartFetch(
     categoryId: number,
     categoryName: string,
-    fetchFunction: () => Promise<any>,
-    providers: string[] = ['openrouter', 'claude'],
+    _fetchFunction: () => Promise<any>,
+    _providers: string[] = ['openrouter', 'claude'],
     country: string = DEFAULT_COUNTRY
   ): Promise<FetchResult> {
     try {
@@ -374,115 +383,55 @@ export class SmartFetcher {
         };
       }
 
-      // Need to refresh - make API calls
-      console.log(`Fetching fresh data for category: ${categoryName} (daily category fetch reserved in database)`);
+      console.log(`Verifying existing stores for category: ${categoryName} (cheap smart fetch reserved in database)`);
 
-      // Use the existing DiscountFetcher for API calls
-      const fetchResult = await DiscountFetcher.fetchAndValidate(
-        providers.join('+'),
+      const existingVerificationResult = await DiscountFetcher.verifyExistingCategoryStores(
+        categoryId,
         categoryName,
-        fetchFunction
+        country,
+        {
+          concurrency: SMART_FETCH_VERIFY_CONCURRENCY,
+          maxPagesPerStore: SMART_FETCH_MAX_PAGES_PER_STORE,
+          requestTimeoutMs: SMART_FETCH_REQUEST_TIMEOUT_MS,
+        }
+      );
+      const verificationStatus = existingVerificationResult.errors.length > 0 ? 'partial' : 'success';
+      const totalStores = existingVerificationResult.stats.totalStores;
+      const totalDiscounts = existingVerificationResult.stats.totalDiscounts;
+
+      await this.updateFetchLog(
+        categoryId,
+        {
+          totalStores,
+          totalDiscounts,
+        },
+        verificationStatus,
+        existingVerificationResult.errors.join(', ') || undefined
       );
 
-      if (fetchResult.success) {
-        // Save to database
-        const saveResult = await DiscountFetcher.saveToDatabase(
-          fetchResult.stores,
-          categoryId
-        );
-        const existingVerificationResult = await DiscountFetcher.verifyExistingCategoryStores(
-          categoryId,
-          categoryName,
-          country
-        );
-        const totalStores = Math.max(
-          fetchResult.stats.totalStores,
-          existingVerificationResult.stats.totalStores
-        );
-        const totalDiscounts = existingVerificationResult.stats.totalDiscounts;
-
-        // Update fetch log
-        await this.updateFetchLog(categoryId, {
-          totalStores,
-          totalDiscounts
-        });
-
-        return {
-          success: true,
-          message: `Successfully fetched fresh data for ${categoryName}`,
-          data: existingVerificationResult.stores,
-          stats: {
-            ...fetchResult.stats,
-            totalStores,
-            totalDiscounts,
-            validStores: totalStores,
-            validDiscounts: totalDiscounts,
-            existingStoresVerified: existingVerificationResult.stats.totalStores,
-            existingVerificationErrors: existingVerificationResult.errors.length,
-            wasCached: false,
-            refreshPeriodDays: reservation.refreshPeriodDays,
-            fetchStatus: 'success',
-            duplicateFetchPrevented: false
-          },
+      return {
+        success: true,
+        message:
+          totalStores > 0
+            ? `Verified existing stores for ${categoryName} without AI token usage.`
+            : `No existing ${country} stores found for ${categoryName}. Add stores manually or use a separate deep discovery flow.`,
+        data: existingVerificationResult.stores,
+        errors: existingVerificationResult.errors,
+        stats: {
+          ...existingVerificationResult.stats,
+          existingStoresVerified: totalStores,
+          existingVerificationErrors: existingVerificationResult.errors.length,
+          aiProviderUsed: false,
+          maxPagesPerStore: SMART_FETCH_MAX_PAGES_PER_STORE,
+          requestTimeoutMs: SMART_FETCH_REQUEST_TIMEOUT_MS,
           wasCached: false,
-          nextFetchDate: reservation.nextFetchDate
-        };
-      } else {
-        const existingVerificationResult = await DiscountFetcher.verifyExistingCategoryStores(
-          categoryId,
-          categoryName,
-          country
-        );
-
-        if (existingVerificationResult.stats.totalStores > 0) {
-          await this.updateFetchLog(
-            categoryId,
-            {
-              totalStores: existingVerificationResult.stats.totalStores,
-              totalDiscounts: existingVerificationResult.stats.totalDiscounts,
-            },
-            fetchResult.errors.length > 0 ? 'partial' : 'success',
-            fetchResult.errors.join(', ') || 'No new AI stores were returned; verified existing category stores instead.'
-          );
-
-          return {
-            success: true,
-            message: `No new AI stores were returned for ${categoryName}; verified existing category stores instead.`,
-            data: existingVerificationResult.stores,
-            errors: fetchResult.errors,
-            stats: {
-              ...fetchResult.stats,
-              totalStores: existingVerificationResult.stats.totalStores,
-              totalDiscounts: existingVerificationResult.stats.totalDiscounts,
-              validStores: existingVerificationResult.stats.validStores,
-              validDiscounts: existingVerificationResult.stats.validDiscounts,
-              existingStoresVerified: existingVerificationResult.stats.totalStores,
-              existingVerificationErrors: existingVerificationResult.errors.length,
-              wasCached: false,
-              refreshPeriodDays: reservation.refreshPeriodDays,
-              fetchStatus: fetchResult.errors.length > 0 ? 'partial' : 'success',
-              duplicateFetchPrevented: false
-            },
-            wasCached: false,
-            nextFetchDate: reservation.nextFetchDate
-          };
-        }
-
-        // Update fetch log with error
-        await this.updateFetchLog(
-          categoryId,
-          { totalStores: 0, totalDiscounts: 0 },
-          'failed',
-          fetchResult.errors.join(', ')
-        );
-
-        return {
-          success: false,
-          message: 'Failed to fetch fresh data',
-          errors: fetchResult.errors,
-          stats: fetchResult.stats
-        };
-      }
+          refreshPeriodDays: reservation.refreshPeriodDays,
+          fetchStatus: verificationStatus,
+          duplicateFetchPrevented: false
+        },
+        wasCached: false,
+        nextFetchDate: reservation.nextFetchDate
+      };
     } catch (error) {
       console.error('Error in smart fetch:', error);
       return {

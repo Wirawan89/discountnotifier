@@ -92,7 +92,7 @@ function buildDiscountFetchPrompt(categoryName: string, country: string): string
     electronicsInstruction,
     'Before including an offer, check the store homepage and at least one relevant second page such as sale, deals, clearance, hot deals, offers, promotions, or outlet.',
     'Only include a discount when the checked page visibly uses wording such as Discount, Sale, Clearance, Deal, Hot Deal, Offer, Promo, Outlet, or Save. If no matching wording is visible for a store, include the store with an empty discounts array.',
-    'Only include offers whose endDate is today or in the future. If an exact end date is not published, use a conservative date 7 days from today and say in the description that availability should be checked on the store website.',
+    'Only include offers whose endDate is today or in the future. If an exact end date is not published, use a conservative date 2 days from today and say in the description that availability should be checked on the store website.',
     'Return JSON only. Do not include markdown, citations, comments, prose, or code fences.',
     'Use this exact structure:',
     '[{"name":"Store Name","url":"https://store.com","suburb":"Suburb Name","city":"City Name","country":"Country Name","discounts":[{"title":"Discount Title","description":"Description","percentage":20,"coupon":"SAVE20","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","eCatalog":["https://store.com/sale-page"]}]}]'
@@ -205,9 +205,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
-    console.log(`Smart fetching discounts for category: ${category.name} in ${country}`);
+    console.log(`Smart verifying existing discounts for category: ${category.name} in ${country}`);
 
-    // Use the smart fetcher
+    // Use the cheap verifier-first smart fetcher. AI discovery is intentionally not the default path.
     const result = await SmartFetcher.smartFetch(
       categoryId,
       category.name,

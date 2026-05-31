@@ -1,7 +1,12 @@
 import { prisma } from '@/lib/prisma';
-import { OfferVerifier } from './offer-verifier';
+import { updateCatalogUrlHealth } from './catalog-health';
+import { getLiveVerifiedOfferEndDate } from './offer-lifecycle';
+import { OfferVerifier, type OfferVerificationResult, type OfferVerifierOptions } from './offer-verifier';
 
 const EXISTING_STORE_VERIFY_CONCURRENCY = 3;
+export const SMART_FETCH_VERIFY_CONCURRENCY = 10;
+export const SMART_FETCH_MAX_PAGES_PER_STORE = 5;
+export const SMART_FETCH_REQUEST_TIMEOUT_MS = 2500;
 
 // Types for consistent data structure
 export interface DiscountData {
@@ -24,6 +29,9 @@ export interface StoreData {
   address?: string;
   description?: string;
   catalogs?: string[];
+  sourceType?: string;
+  googleBusinessUrl?: string;
+  websiteUrl?: string;
   discounts: DiscountData[];
 }
 
@@ -37,6 +45,12 @@ export interface FetchResult {
     validStores: number;
     validDiscounts: number;
   };
+}
+
+export interface ExistingStoreVerifyOptions {
+  concurrency?: number;
+  maxPagesPerStore?: number;
+  requestTimeoutMs?: number;
 }
 
 function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'dining' | 'entertainment' | 'services' | 'travel' {
@@ -162,6 +176,9 @@ export class DataValidator {
         address: this.sanitizeString(store.address),
         description: this.sanitizeString(store.description),
         catalogs: Array.isArray(store.catalogs) ? store.catalogs.filter((url: string) => this.isValidUrl(url)) : [],
+        sourceType: this.sanitizeString(store.sourceType),
+        googleBusinessUrl: this.sanitizeString(store.googleBusinessUrl),
+        websiteUrl: this.sanitizeString(store.websiteUrl),
         discounts: validDiscounts,
       };
     } catch (error) {
@@ -331,8 +348,7 @@ export class DiscountFetcher {
     categoryName?: string
   ): DiscountData {
     const startDate = new Date();
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 7);
+    const endDate = getLiveVerifiedOfferEndDate(startDate);
 
     const matchedText = matchedKeywords.length > 0 ? matchedKeywords.join(', ') : 'offer';
     const hasEofyOffer = matchedKeywords.some((keyword) => /eofy|end of financial year/i.test(keyword));
@@ -361,12 +377,61 @@ export class DiscountFetcher {
     };
   }
 
-  private static async keepOnlyVerifiedOffers(store: StoreData, categoryName?: string): Promise<StoreData> {
+  private static mergeVerificationResults(results: OfferVerificationResult[]): OfferVerificationResult {
+    const failedCatalogUrlMap = new Map<string, OfferVerificationResult['failedCatalogUrls'][number]>();
+
+    for (const result of results) {
+      for (const failedCatalogUrl of result.failedCatalogUrls ?? []) {
+        failedCatalogUrlMap.set(failedCatalogUrl.url, failedCatalogUrl);
+      }
+    }
+
+    return {
+      hasOffer: results.some((result) => result.hasOffer),
+      matchedKeywords: Array.from(new Set(results.flatMap((result) => result.matchedKeywords))),
+      checkedUrls: Array.from(new Set(results.flatMap((result) => result.checkedUrls))),
+      matchedUrl: results.find((result) => result.matchedUrl)?.matchedUrl,
+      failedCatalogUrls: Array.from(failedCatalogUrlMap.values()),
+    };
+  }
+
+  private static async updateStoreCatalogHealth(
+    dbStoreId: number | undefined,
+    store: StoreData,
+    results: OfferVerificationResult[]
+  ): Promise<void> {
+    if (!dbStoreId || !store.catalogs || store.catalogs.length === 0 || results.length === 0) {
+      return;
+    }
+
+    const { removedCatalogUrls } = await updateCatalogUrlHealth(
+      prisma,
+      dbStoreId,
+      store.catalogs,
+      this.mergeVerificationResults(results)
+    );
+
+    if (removedCatalogUrls.length > 0) {
+      store.catalogs = store.catalogs.filter((catalogUrl) => !removedCatalogUrls.includes(catalogUrl));
+      console.log(
+        `Removed inactive catalog URL(s) for ${store.name} after repeated failures: ${removedCatalogUrls.join(', ')}`
+      );
+    }
+  }
+
+  private static async keepOnlyVerifiedOffers(
+    store: StoreData,
+    categoryName?: string,
+    dbStoreId?: number,
+    verifierOptions: Pick<OfferVerifierOptions, 'maxPages' | 'requestTimeoutMs'> = {}
+  ): Promise<StoreData> {
     if (store.discounts.length === 0) {
       const result = await OfferVerifier.verifyStoreOfferPages(store.url, store.catalogs, {
         country: store.country,
         profile: getVerifierProfile(categoryName),
+        ...verifierOptions,
       });
+      await this.updateStoreCatalogHealth(dbStoreId, store, [result]);
 
       if (!result.hasOffer || !result.matchedUrl) {
         return store;
@@ -392,8 +457,12 @@ export class DiscountFetcher {
     const storeResult = await OfferVerifier.verifyStoreOfferPages(store.url, store.catalogs, {
       country: store.country,
       profile: getVerifierProfile(categoryName),
+      ...verifierOptions,
     });
+    const verificationResults = [storeResult];
+
     if (storeResult.hasOffer) {
+      await this.updateStoreCatalogHealth(dbStoreId, store, verificationResults);
       console.log(
         `Verified offer wording for ${store.name} on ${storeResult.matchedUrl}: ${storeResult.matchedKeywords.join(', ')}`
       );
@@ -412,8 +481,9 @@ export class DiscountFetcher {
       const discountResult = await OfferVerifier.verifyStoreOfferPages(
         store.url,
         discount.eCatalog || [],
-        { country: store.country, profile: getVerifierProfile(categoryName) }
+        { country: store.country, profile: getVerifierProfile(categoryName), ...verifierOptions }
       );
+      verificationResults.push(discountResult);
 
       if (discountResult.hasOffer) {
         verifiedDiscounts.push({
@@ -429,6 +499,7 @@ export class DiscountFetcher {
         );
       }
     }
+    await this.updateStoreCatalogHealth(dbStoreId, store, verificationResults);
 
     return {
       ...store,
@@ -526,9 +597,11 @@ export class DiscountFetcher {
   static async verifyExistingCategoryStores(
     categoryId: number,
     categoryName: string,
-    country = 'Australia'
+    country = 'Australia',
+    options: ExistingStoreVerifyOptions = {}
   ): Promise<{ stores: StoreData[]; stats: FetchResult['stats']; errors: string[] }> {
     const errors: string[] = [];
+    const concurrency = Math.max(1, options.concurrency ?? EXISTING_STORE_VERIFY_CONCURRENCY);
     const normalizedCountry = country && country.trim().length > 0 ? country.trim() : 'Australia';
     const countryWhere =
       normalizedCountry === 'Australia'
@@ -571,6 +644,9 @@ export class DiscountFetcher {
           address: dbStore.address || undefined,
           description: dbStore.description || undefined,
           catalogs: dbStore.catalogs,
+          sourceType: dbStore.sourceType || undefined,
+          googleBusinessUrl: dbStore.googleBusinessUrl || undefined,
+          websiteUrl: dbStore.websiteUrl || undefined,
           discounts: dbStore.discounts.map((discount) => ({
             title: discount.title,
             description: discount.description || undefined,
@@ -582,7 +658,17 @@ export class DiscountFetcher {
           })),
         };
 
-        const verifiedStore = await this.keepOnlyVerifiedOffers(storeData, categoryName);
+        const verifiedStore = await this.keepOnlyVerifiedOffers(
+          storeData,
+          categoryName,
+          dbStore.id,
+          options.maxPagesPerStore || options.requestTimeoutMs
+            ? {
+                maxPages: options.maxPagesPerStore,
+                requestTimeoutMs: options.requestTimeoutMs,
+              }
+            : undefined
+        );
         await this.saveToDatabase([verifiedStore], categoryId, dbStore.ownerId);
         return verifiedStore;
       } catch (error) {
@@ -597,8 +683,8 @@ export class DiscountFetcher {
 
     const verifiedStores: StoreData[] = [];
 
-    for (let index = 0; index < dbStores.length; index += EXISTING_STORE_VERIFY_CONCURRENCY) {
-      const batch = dbStores.slice(index, index + EXISTING_STORE_VERIFY_CONCURRENCY);
+    for (let index = 0; index < dbStores.length; index += concurrency) {
+      const batch = dbStores.slice(index, index + concurrency);
       const batchResults = await Promise.all(batch.map((dbStore) => verifyAndSaveStore(dbStore)));
       verifiedStores.push(...batchResults.filter((store): store is StoreData => Boolean(store)));
     }
@@ -640,6 +726,9 @@ export class DiscountFetcher {
             address: storeData.address,
             description: storeData.description,
             catalogs: storeData.catalogs,
+            sourceType: storeData.sourceType,
+            googleBusinessUrl: storeData.googleBusinessUrl,
+            websiteUrl: storeData.websiteUrl,
             categoryId: categoryId,
           },
           create: {
@@ -652,6 +741,9 @@ export class DiscountFetcher {
             address: storeData.address,
             description: storeData.description,
             catalogs: storeData.catalogs,
+            sourceType: storeData.sourceType,
+            googleBusinessUrl: storeData.googleBusinessUrl,
+            websiteUrl: storeData.websiteUrl,
             categoryId: categoryId,
             ownerId: ownerId,
           },
