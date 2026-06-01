@@ -26,6 +26,11 @@ export async function GET() {
         endDate: {
           gte: now,
         },
+        store: {
+          NOT: {
+            locationSource: 'closed',
+          },
+        },
       },
       include: { store: true },
     });

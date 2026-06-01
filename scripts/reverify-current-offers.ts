@@ -6,6 +6,7 @@ import { OfferVerifier } from "../src/lib/offer-verifier";
 const prisma = new PrismaClient();
 const categoryName = process.argv.find((arg) => arg.startsWith("--category="))?.split("=")[1];
 const storeName = process.argv.find((arg) => arg.startsWith("--store="))?.split("=")[1];
+const storeNameContains = process.argv.find((arg) => arg.startsWith("--storeContains="))?.split("=")[1];
 const createMissingOffers = process.argv.includes("--create-missing");
 
 function getVerifierProfile(categoryName?: string): "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel" {
@@ -93,10 +94,17 @@ function createGenericOffer(
   };
 }
 
+function getStoreVerificationUrl(store: { url: string; websiteUrl?: string | null }) {
+  return store.websiteUrl || store.url;
+}
+
 async function main() {
   const now = new Date();
   const stores = await prisma.store.findMany({
     where: {
+      NOT: {
+        locationSource: "closed",
+      },
       ...(createMissingOffers
         ? {}
         : {
@@ -123,6 +131,14 @@ async function main() {
             },
           }
         : {}),
+      ...(storeNameContains
+        ? {
+            name: {
+              contains: storeNameContains,
+              mode: "insensitive",
+            },
+          }
+        : {}),
     },
     include: {
       category: true,
@@ -145,13 +161,15 @@ async function main() {
   let created = 0;
 
   console.log(
-    `Rechecking ${stores.length} store(s)${categoryName ? ` in ${categoryName}` : ""}${storeName ? ` named ${storeName}` : ""} for current offer wording...`
+    `Rechecking ${stores.length} store(s)${categoryName ? ` in ${categoryName}` : ""}${storeName ? ` named ${storeName}` : ""}${storeNameContains ? ` matching ${storeNameContains}` : ""} for current offer wording...`
   );
 
   for (const store of stores) {
+    const verificationUrl = getStoreVerificationUrl(store);
+
     if (createMissingOffers && store.discounts.length === 0) {
       checked++;
-      const result = await OfferVerifier.verifyStoreOfferPages(store.url, store.catalogs, {
+      const result = await OfferVerifier.verifyStoreOfferPages(verificationUrl, store.catalogs, {
         country: store.country,
         profile: getVerifierProfile(store.category.name),
       });
@@ -199,7 +217,7 @@ async function main() {
 
     for (const discount of store.discounts) {
       checked++;
-      const result = await OfferVerifier.verifyStoreOfferPages(store.url, [
+      const result = await OfferVerifier.verifyStoreOfferPages(verificationUrl, [
         ...store.catalogs,
         ...discount.eCatalog,
       ], {

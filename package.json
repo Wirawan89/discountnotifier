@@ -17,6 +17,8 @@
     "cleanup:monthly": "node scripts/monthly-cleanup.js",
     "cleanup:monthly:dry-run": "node scripts/monthly-cleanup.js --dry-run",
     "offers:reverify": "tsx scripts/reverify-current-offers.ts",
+    "location:enrich": "tsx scripts/run-location-enrichment.ts",
+    "admin:run-due": "tsx scripts/run-scheduled-admin-tasks.ts",
     "setup:cron": "node scripts/setup-cron.js",
     "test:email": "node scripts/test-email.js",
     "init:admin": "node scripts/init-admin.js"

@@ -84,7 +84,12 @@ export async function GET(request: Request) {
     const now = new Date();
     const countryWhere = buildCountryWhere(country);
     const availableStores = await prisma.store.findMany({
-      where: countryWhere,
+      where: {
+        ...countryWhere,
+        NOT: {
+          locationSource: "closed",
+        },
+      },
       select: {
         suburb: true,
       },
@@ -99,6 +104,9 @@ export async function GET(request: Request) {
     const stores = await prisma.store.findMany({
       where: {
         ...countryWhere,
+        NOT: {
+          locationSource: "closed",
+        },
         suburb: {
           in: suburbs,
         },

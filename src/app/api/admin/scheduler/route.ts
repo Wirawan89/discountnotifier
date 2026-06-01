@@ -35,6 +35,17 @@ const DEFAULT_TASKS = [
     maxPages: 12,
     notes: "Token-controlled discovery for new stores. Keep disabled until provider budget rules are configured.",
   },
+  {
+    name: "Location enrichment",
+    taskType: "location_enrichment",
+    frequency: "monthly",
+    timeOfDay: "04:30",
+    dayOfMonth: 2,
+    enabled: false,
+    deepMode: true,
+    maxPages: 18,
+    notes: "Revisit online chain stores, refresh branch locations nationally, then run offer verification for the category.",
+  },
 ];
 
 function parseTimeOfDay(timeOfDay: string) {
@@ -71,11 +82,52 @@ function getNextRunDate(task: {
     return next;
   }
 
+  if (task.frequency === "quarterly") {
+    const dayOfMonth = Math.min(28, Math.max(1, task.dayOfMonth || 1));
+    next.setDate(dayOfMonth);
+
+    while (next <= now) {
+      next.setMonth(next.getMonth() + 3);
+    }
+
+    return next;
+  }
+
   if (next <= now) {
     next.setDate(next.getDate() + 1);
   }
 
   return next;
+}
+
+function normalizeCategoryIds(body: Record<string, unknown>) {
+  if (Array.isArray(body.categoryIds)) {
+    return body.categoryIds
+      .map((categoryId) => Number(categoryId))
+      .filter((categoryId) => Number.isInteger(categoryId));
+  }
+
+  return body.categoryId ? [Number(body.categoryId)] : [];
+}
+
+function normalizeTaskData(body: Record<string, unknown>) {
+  const frequency = String(body.frequency || "daily");
+  const categoryIds = normalizeCategoryIds(body);
+
+  return {
+    name: String(body.name || "").trim(),
+    taskType: String(body.taskType || "deep_verify"),
+    frequency,
+    timeOfDay: String(body.timeOfDay || "02:00"),
+    dayOfWeek: frequency === "weekly" ? Number(body.dayOfWeek ?? 1) : null,
+    dayOfMonth: frequency === "monthly" || frequency === "quarterly" ? Number(body.dayOfMonth ?? 1) : null,
+    enabled: Boolean(body.enabled),
+    deepMode: Boolean(body.deepMode),
+    maxPages: Math.max(1, Math.min(24, Number(body.maxPages) || 12)),
+    categoryIds,
+    categoryId: categoryIds.length === 1 ? categoryIds[0] : null,
+    notes: body.notes ? String(body.notes) : null,
+  };
 }
 
 async function ensureDefaultTasks() {
@@ -129,18 +181,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Task ID is required" }, { status: 400 });
     }
 
-    const data = {
-      name: String(body.name || "").trim(),
-      frequency: String(body.frequency || "daily"),
-      timeOfDay: String(body.timeOfDay || "02:00"),
-      dayOfWeek: body.frequency === "weekly" ? Number(body.dayOfWeek ?? 1) : null,
-      dayOfMonth: body.frequency === "monthly" ? Number(body.dayOfMonth ?? 1) : null,
-      enabled: Boolean(body.enabled),
-      deepMode: Boolean(body.deepMode),
-      maxPages: Math.max(1, Math.min(24, Number(body.maxPages) || 12)),
-      categoryId: body.categoryId ? Number(body.categoryId) : null,
-      notes: body.notes ? String(body.notes) : null,
-    };
+    const data = normalizeTaskData(body);
 
     if (!data.name) {
       return NextResponse.json({ error: "Task name is required" }, { status: 400 });
@@ -158,6 +199,54 @@ export async function PATCH(request: Request) {
     return NextResponse.json(task);
   } catch (error) {
     console.error("Admin scheduler PATCH error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const { error } = await requireAdmin();
+    if (error) return error;
+
+    const body = await request.json();
+    const data = normalizeTaskData(body);
+
+    if (!data.name) {
+      return NextResponse.json({ error: "Task name is required" }, { status: 400 });
+    }
+
+    const task = await prisma.adminScheduledTask.create({
+      data: {
+        ...data,
+        nextRunAt: data.enabled ? getNextRunDate(data) : null,
+      },
+      include: { category: { select: { id: true, name: true } } },
+    });
+
+    return NextResponse.json(task);
+  } catch (error) {
+    console.error("Admin scheduler POST error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { error } = await requireAdmin();
+    if (error) return error;
+
+    const { searchParams } = new URL(request.url);
+    const id = Number(searchParams.get("id"));
+
+    if (!id) {
+      return NextResponse.json({ error: "Task ID is required" }, { status: 400 });
+    }
+
+    await prisma.adminScheduledTask.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Admin scheduler DELETE error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

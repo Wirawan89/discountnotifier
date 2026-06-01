@@ -331,6 +331,7 @@ model AdminScheduledTask {
   deepMode        Boolean   @default(false)
   maxPages        Int       @default(12)
   categoryId      Int?
+  categoryIds     Int[]     @default([])
   category        Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   notes           String?
   lastRunAt       DateTime?

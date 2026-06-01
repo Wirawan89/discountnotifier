@@ -51,6 +51,9 @@ export async function GET(request: Request) {
       where: {
         categoryId: parseInt(categoryId),
         ...buildCountryWhere(country),
+        NOT: {
+          locationSource: 'closed',
+        },
         OR: [
           { sourceType: { not: 'google_business' } },
           {

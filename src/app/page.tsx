@@ -306,11 +306,14 @@ export default function Home() {
 
     if (searchTerm) {
       const normalizedSearch = searchTerm.toLowerCase();
+      const searchWords = normalizedSearch.split(/\s+/).filter(Boolean);
       filtered = filtered.filter((store) => {
         const storeDiscounts = discounts.filter((discount) => discount.storeId === store.id);
         const highSignalText = [
           store.name,
           store.url,
+          store.websiteUrl || "",
+          store.address || "",
           ...storeDiscounts.flatMap((discount) => [
             discount.title,
             discount.description || "",
@@ -331,7 +334,11 @@ export default function Home() {
           .join(" ")
           .toLowerCase();
 
-        return (normalizedSearch.length <= 2 ? highSignalText : searchableText).includes(normalizedSearch);
+        const searchTarget = normalizedSearch.length <= 2 ? highSignalText : searchableText;
+
+        return searchWords.length > 1
+          ? searchWords.every((word) => searchTarget.includes(word))
+          : searchTarget.includes(normalizedSearch);
       });
     }
 

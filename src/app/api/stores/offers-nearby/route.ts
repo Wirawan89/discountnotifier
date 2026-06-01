@@ -96,6 +96,9 @@ export async function GET(request: Request) {
       where: {
         ...countryWhere,
         ...categoryWhere,
+        NOT: {
+          locationSource: "closed",
+        },
       },
       select: {
         suburb: true,
@@ -112,6 +115,9 @@ export async function GET(request: Request) {
       where: {
         ...countryWhere,
         ...categoryWhere,
+        NOT: {
+          locationSource: "closed",
+        },
         suburb: {
           in: suburbs,
         },

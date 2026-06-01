@@ -24,13 +24,14 @@ export default function StoreCard({
   const storeDiscounts = discounts.filter((discount) => discount.storeId === store.id);
   const storePromotions = store.promotions || [];
   const normalizeExternalUrl = (url: string) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+  const getStoreVisitUrl = () => normalizeExternalUrl(store.url || store.websiteUrl || store.googleBusinessUrl || "");
   const getDiscountUrl = (discount?: Discount) => {
     const offerUrl = discount?.eCatalog?.find((url) => /^https?:\/\//i.test(url));
 
-    return normalizeExternalUrl(offerUrl || store.websiteUrl || store.googleBusinessUrl || store.url);
+    return normalizeExternalUrl(offerUrl || store.url || store.websiteUrl || store.googleBusinessUrl || "");
   };
   const getPromotionUrl = (promotion?: { url?: string | null }) => {
-    return normalizeExternalUrl(promotion?.url || store.websiteUrl || store.googleBusinessUrl || store.url);
+    return normalizeExternalUrl(promotion?.url || store.url || store.websiteUrl || store.googleBusinessUrl || "");
   };
   const destinationParts = [
     store.address,
@@ -40,7 +41,7 @@ export default function StoreCard({
     store.country || "Australia",
   ].filter((part): part is string => Boolean(part && part.trim().length > 0));
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destinationParts.join(", "))}`;
-  const primaryVisitUrl = storeDiscounts[0] ? getDiscountUrl(storeDiscounts[0]) : getPromotionUrl(storePromotions[0]);
+  const primaryVisitUrl = getStoreVisitUrl();
   const getOfferPeriodText = (discount: Discount) => {
     const isLiveVerifiedOffer = /offer wording found on the store website/i.test(discount.description || "");
 

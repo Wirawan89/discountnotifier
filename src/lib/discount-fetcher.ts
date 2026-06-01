@@ -105,6 +105,40 @@ function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'd
   return 'retail';
 }
 
+function hostName(value?: string) {
+  if (!value) return null;
+
+  try {
+    return new URL(value).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function looksLikeLocatorUrl(value?: string) {
+  if (!value) return false;
+
+  return /(?:store-?locator|find-?a-?store|\/stores(?:\/|\?|$)|\/locations(?:\/|\?|$))/i.test(value);
+}
+
+function getStoreVerificationUrl(store: StoreData) {
+  const storeHost = hostName(store.url);
+  const websiteHost = hostName(store.websiteUrl);
+
+  if (
+    store.url &&
+    store.websiteUrl &&
+    storeHost &&
+    websiteHost &&
+    storeHost !== websiteHost &&
+    !looksLikeLocatorUrl(store.url)
+  ) {
+    return store.url;
+  }
+
+  return store.websiteUrl || store.url;
+}
+
 // Data validation utilities
 export class DataValidator {
   static isValidUrl(url: string): boolean {
@@ -425,8 +459,10 @@ export class DiscountFetcher {
     dbStoreId?: number,
     verifierOptions: Pick<OfferVerifierOptions, 'maxPages' | 'requestTimeoutMs'> = {}
   ): Promise<StoreData> {
+    const verificationUrl = getStoreVerificationUrl(store);
+
     if (store.discounts.length === 0) {
-      const result = await OfferVerifier.verifyStoreOfferPages(store.url, store.catalogs, {
+      const result = await OfferVerifier.verifyStoreOfferPages(verificationUrl, store.catalogs, {
         country: store.country,
         profile: getVerifierProfile(categoryName),
         ...verifierOptions,
@@ -454,7 +490,7 @@ export class DiscountFetcher {
       };
     }
 
-    const storeResult = await OfferVerifier.verifyStoreOfferPages(store.url, store.catalogs, {
+    const storeResult = await OfferVerifier.verifyStoreOfferPages(verificationUrl, store.catalogs, {
       country: store.country,
       profile: getVerifierProfile(categoryName),
       ...verifierOptions,
@@ -479,7 +515,7 @@ export class DiscountFetcher {
 
     for (const discount of store.discounts) {
       const discountResult = await OfferVerifier.verifyStoreOfferPages(
-        store.url,
+        verificationUrl,
         discount.eCatalog || [],
         { country: store.country, profile: getVerifierProfile(categoryName), ...verifierOptions }
       );
@@ -617,6 +653,9 @@ export class DiscountFetcher {
       where: {
         categoryId,
         ...countryWhere,
+        NOT: {
+          locationSource: 'closed',
+        },
       },
       include: {
         discounts: {

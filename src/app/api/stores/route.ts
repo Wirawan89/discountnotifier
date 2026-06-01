@@ -50,6 +50,9 @@ export async function GET(request: Request) {
       where: {
         ...(categoryId ? { categoryId: Number(categoryId) } : {}),
         ...buildCountryWhere(country),
+        NOT: {
+          locationSource: 'closed',
+        },
         ...(hideLeadOnly
           ? {
               OR: [
