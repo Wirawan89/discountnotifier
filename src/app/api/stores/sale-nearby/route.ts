@@ -71,6 +71,20 @@ function pickNearbySuburbs(location: string, availableSuburbs: string[]) {
   return [exactSuburb, ...nearby].slice(0, MAX_NEARBY_SUBURBS + 1);
 }
 
+function currentMonthlyWeek(date: Date) {
+  return Math.min(4, Math.floor((date.getDate() - 1) / 7) + 1);
+}
+
+function isScheduledForDate(scheduleType: string, weeklyDays: number[], monthlyWeeks: number[], date: Date) {
+  if (scheduleType === "daily" || scheduleType === "one_off") return true;
+  if (scheduleType === "weekly") {
+    const day = date.getDay() === 0 ? 7 : date.getDay();
+    return weeklyDays.includes(day);
+  }
+  if (scheduleType === "monthly") return monthlyWeeks.includes(currentMonthlyWeek(date));
+  return true;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -163,20 +177,28 @@ export async function GET(request: Request) {
       orderBy: [{ suburb: "asc" }, { name: "asc" }],
     });
 
-    const totalDiscounts = stores.reduce((sum, store) => sum + store.discounts.length, 0);
-    const totalPromotions = stores.reduce((sum, store) => sum + store.promotions.length, 0);
+    const scheduledStores = stores
+      .map((store) => ({
+        ...store,
+        promotions: store.promotions.filter((promotion) =>
+          isScheduledForDate(promotion.scheduleType, promotion.weeklyDays, promotion.monthlyWeeks, now)
+        ),
+      }))
+      .filter((store) => store.discounts.length > 0 || store.promotions.length > 0);
+    const totalDiscounts = scheduledStores.reduce((sum, store) => sum + store.discounts.length, 0);
+    const totalPromotions = scheduledStores.reduce((sum, store) => sum + store.promotions.length, 0);
 
     return NextResponse.json({
       message:
-        stores.length > 0
-          ? `Found ${stores.length} stores with ${totalDiscounts} current offers and ${totalPromotions} merchant promotions near ${location}`
+        scheduledStores.length > 0
+          ? `Found ${scheduledStores.length} stores with ${totalDiscounts} current offers and ${totalPromotions} merchant promotions near ${location}`
           : `No sale or offer stores found near ${location}. To learn or browse the stores near you, use Categories and select Near me.`,
       location,
       country,
       suburbs,
-      stores,
+      stores: scheduledStores,
       stats: {
-        totalStores: stores.length,
+        totalStores: scheduledStores.length,
         totalDiscounts,
         totalPromotions,
       },

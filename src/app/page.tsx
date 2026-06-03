@@ -266,6 +266,27 @@ export default function Home() {
       ).sort(),
     [selectedCountry, stores]
   );
+  const searchableLocationOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          stores
+            .filter((store) => normalizeCountry(store.country) === selectedCountry)
+            .flatMap((store) => [store.suburb, store.city])
+            .filter((location): location is string => Boolean(location && location.trim().length > 0))
+        )
+      ).sort((a, b) => a.localeCompare(b)),
+    [selectedCountry, stores]
+  );
+  const searchedLocationScope = useMemo(() => {
+    const normalizedSearch = normalizeLocation(searchTerm);
+
+    if (!normalizedSearch) {
+      return [];
+    }
+
+    return searchableLocationOptions.filter((location) => normalizeLocation(location) === normalizedSearch);
+  }, [searchTerm, searchableLocationOptions]);
 
   const countryOptions = useMemo(
     () =>
@@ -334,7 +355,10 @@ export default function Home() {
           .join(" ")
           .toLowerCase();
 
-        const searchTarget = normalizedSearch.length <= 2 ? highSignalText : searchableText;
+        const exactLocationMatch =
+          normalizeLocation(store.suburb) === normalizedSearch ||
+          normalizeLocation(store.city) === normalizedSearch;
+        const searchTarget = normalizedSearch.length <= 2 && !exactLocationMatch ? highSignalText : searchableText;
 
         return searchWords.length > 1
           ? searchWords.every((word) => searchTarget.includes(word))
@@ -725,6 +749,13 @@ export default function Home() {
 
     setSmartFetchLoading(true);
     setSmartFetchResult(null);
+    const scopedSuburbs = selectedSuburb
+      ? [selectedSuburb]
+      : showNearMe && userLocation
+        ? [userLocation]
+        : searchedLocationScope.length > 0
+          ? searchedLocationScope
+        : [];
 
     try {
       const response = await fetch('/api/discounts/smart-fetch', {
@@ -734,6 +765,7 @@ export default function Home() {
           categoryId: selectedCategory.id,
           country: selectedCountry,
           providers: ['openrouter'],
+          suburbs: scopedSuburbs,
         }),
       });
       const data = await response.json();
@@ -741,8 +773,9 @@ export default function Home() {
       if (response.ok) {
         const message = data.message || 'Success!';
         const stats = data.stats ? ` (${data.stats.totalStores} stores, ${data.stats.totalDiscounts} discounts)` : '';
+        const scopeInfo = scopedSuburbs.length > 0 ? ` [${scopedSuburbs.join(", ")}]` : "";
         const cacheInfo = data.wasCached ? ' [CACHED]' : ' [FRESH]';
-        setSmartFetchResult(message + stats + cacheInfo);
+        setSmartFetchResult(message + stats + scopeInfo + cacheInfo);
         setTimeout(() => refreshCategoryData(selectedCategory), 1000);
       } else {
         const errorDetails = Array.isArray(data.details) ? data.details.join(' ') : data.details || '';

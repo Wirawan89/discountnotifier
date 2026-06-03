@@ -157,7 +157,7 @@ model Discount {
   coupon        String?
   eCatalog      String[] // Array of image URLs (optional, can be used for discount-specific images)
   createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
 
   @@unique([storeId, title])
 }
@@ -205,6 +205,9 @@ model Business {
   category              Category @relation(fields: [categoryId], references: [id])
   promotionMessage      String   @db.VarChar(96)
   promotionUrl          String?
+  promotionScheduleType String   @default("one_off")
+  promotionWeeklyDays   Int[]    @default([])
+  promotionMonthlyWeeks Int[]    @default([])
   promotionStartDate    DateTime
   promotionEndDate      DateTime
   showcaseImages        String[] @default([])
@@ -233,6 +236,9 @@ model Promotion {
   storeId   Int
   message   String   @db.VarChar(96)
   url       String?
+  scheduleType String @default("one_off")
+  weeklyDays   Int[]  @default([])
+  monthlyWeeks Int[]  @default([])
   startDate DateTime
   endDate   DateTime
   priority  Int      @default(0)

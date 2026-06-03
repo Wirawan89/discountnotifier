@@ -36,21 +36,34 @@ const taskLabels: Record<string, string> = {
   deep_verify: "Deep Verify",
   new_store_discovery: "New Store Discovery",
   location_enrichment: "Location Enrichment",
+  regional_seed: "Regional Seed",
 };
 
 const taskTypes = [
   { value: "offers_reverify", label: "Offers Reverify" },
   { value: "deep_verify", label: "Deep Verify" },
   { value: "location_enrichment", label: "Location Enrichment" },
+  { value: "regional_seed", label: "Regional Seed" },
   { value: "new_store_discovery", label: "New Store Discovery" },
+];
+
+const regionalSeedCategories = [
+  {
+    name: "Dining & Beverages",
+    regions: ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"],
+  },
+  {
+    name: "Food & Groceries",
+    regions: ["NSW"],
+  },
 ];
 
 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function blankTask(): ScheduledTask {
+function blankTask(name: string): ScheduledTask {
   return {
     id: 0,
-    name: "Deep Verify - New Schedule",
+    name,
     taskType: "deep_verify",
     frequency: "monthly",
     timeOfDay: "03:00",
@@ -73,6 +86,9 @@ export default function SchedulerPage() {
   const [cronStatus, setCronStatus] = useState<CronStatus | null>(null);
   const [cronInterval, setCronInterval] = useState(15);
   const [cronSaving, setCronSaving] = useState(false);
+  const [regionalSeedCategory, setRegionalSeedCategory] = useState(regionalSeedCategories[0].name);
+  const [regionalSeedRegions, setRegionalSeedRegions] = useState<string[]>([]);
+  const [regionalSeedRunning, setRegionalSeedRunning] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -124,8 +140,17 @@ export default function SchedulerPage() {
   };
 
   const startCreate = () => {
+    const usedNumbers = new Set(
+      tasks
+        .filter((task) => task.taskType === "deep_verify")
+        .map((task) => Number(task.name.match(/^Deep Verify - (\d+)$/)?.[1]))
+        .filter(Boolean)
+    );
+    let nextNumber = 1;
+    while (usedNumbers.has(nextNumber)) nextNumber++;
+
     setEditingId("new");
-    setDraftTask(blankTask());
+    setDraftTask(blankTask(`Deep Verify - ${nextNumber}`));
     setMessage("");
   };
 
@@ -276,6 +301,46 @@ export default function SchedulerPage() {
       }
     } finally {
       setCronSaving(false);
+    }
+  };
+
+  const selectedRegionalSeedConfig =
+    regionalSeedCategories.find((category) => category.name === regionalSeedCategory) || regionalSeedCategories[0];
+
+  const toggleRegionalSeedRegion = (region: string, checked: boolean) => {
+    setRegionalSeedRegions((current) =>
+      checked ? Array.from(new Set([...current, region])) : current.filter((currentRegion) => currentRegion !== region)
+    );
+  };
+
+  const updateRegionalSeedCategory = (categoryName: string) => {
+    const nextConfig = regionalSeedCategories.find((category) => category.name === categoryName) || regionalSeedCategories[0];
+    setRegionalSeedCategory(nextConfig.name);
+    setRegionalSeedRegions((current) => current.filter((region) => nextConfig.regions.includes(region)));
+  };
+
+  const runRegionalSeed = async () => {
+    setRegionalSeedRunning(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/admin/regional-seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoryName: regionalSeedCategory,
+          regions: regionalSeedRegions,
+        }),
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage(`${data.message} PID: ${data.pid}. Log: ${data.logPath}`);
+      } else {
+        setMessage(data.error || "Failed to start regional seed.");
+      }
+    } finally {
+      setRegionalSeedRunning(false);
     }
   };
 
@@ -559,6 +624,79 @@ export default function SchedulerPage() {
                 Stop Cron
               </button>
             )}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg bg-white p-5 shadow">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Regional Seed Runner</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Manually seed all available regions or selected regions for supported categories.
+            </p>
+            <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+              <div className="font-semibold text-gray-800">Command equivalent</div>
+              <div className="mt-2">
+                <code>npx tsx scripts/run-regional-seed.ts --category=&quot;{regionalSeedCategory}&quot;</code>
+              </div>
+            </div>
+          </div>
+          <div className="w-full space-y-4 lg:max-w-xl">
+            <label className="block text-sm font-medium text-gray-700">
+              Category
+              <select
+                value={regionalSeedCategory}
+                onChange={(event) => updateRegionalSeedCategory(event.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm"
+              >
+                {regionalSeedCategories.map((category) => (
+                  <option key={category.name} value={category.name}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="text-sm font-medium text-gray-700">
+              Regions
+              <div className="mt-1 rounded-md border border-gray-300 bg-white p-3 shadow-sm">
+                <label className="mb-2 flex items-center gap-2 text-sm font-normal text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={regionalSeedRegions.length === 0}
+                    onChange={() => setRegionalSeedRegions([])}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                  />
+                  All available regions
+                </label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {selectedRegionalSeedConfig.regions.map((region) => (
+                    <label key={region} className="flex items-center gap-2 text-sm font-normal text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={regionalSeedRegions.includes(region)}
+                        onChange={(event) => toggleRegionalSeedRegion(region, event.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                      />
+                      {region}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <p className="mt-1 text-xs font-normal text-gray-500">
+                Leave all unchecked to run every script currently available for the category.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={runRegionalSeed}
+              disabled={regionalSeedRunning}
+              className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-purple-700 disabled:opacity-50"
+            >
+              {regionalSeedRunning ? "Starting..." : "Run Regional Seed"}
+            </button>
           </div>
         </div>
       </section>

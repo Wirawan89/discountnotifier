@@ -44,7 +44,7 @@ const businessAttireStores = [
 
 function createOffer(storeName: string, matchedUrl: string, matchedKeywords: string[]) {
   const startDate = new Date();
-  const endDate = getLiveVerifiedOfferEndDate(startDate);
+  const endDate = getLiveVerifiedOfferEndDate(startDate, "retailShop");
 
   return {
     title: `${storeName} current sale and offers`,

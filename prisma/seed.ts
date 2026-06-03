@@ -1288,6 +1288,16 @@ async function main() {
       catalogs: ['https://www.citybeach.com/au/sale'],
     },
     {
+      name: 'H&M Australia',
+      url: 'https://www2.hm.com/en_au/index.html',
+      catalogs: [
+        'https://www2.hm.com/en_au/men/deals/up-to-50-off-selected-styles.html',
+        'https://www2.hm.com/en_au/women/deals/selected-styles-up-to-50-off.html',
+        'https://www2.hm.com/en_au/sale/men/50-off-or-more.html',
+        'https://www2.hm.com/en_au/sale/kids/50-off-or-more.html',
+      ],
+    },
+    {
       name: 'Akubra Hats Australia',
       url: 'https://akubra.com.au/',
       suburb: 'Kempsey',
@@ -1558,10 +1568,9 @@ async function main() {
       suburb: 'Bankstown',
       city: 'Sydney',
       catalogs: [
-        'https://www.binglee.com.au/articles/sales/afterpay-day-sale',
-        'https://www.binglee.com.au/categories/promotions/hot-tax-time-deals-on-selected-appliances',
-        'https://www.binglee.com.au/stores/online-sales',
-        'https://www.binglee.com.au/categories/promotions/clearance',
+        'https://www.binglee.com.au/collections/clearance',
+        'https://www.binglee.com.au/collections/hot-deals',
+        'https://www.binglee.com.au/collections/sale',
       ],
     },
     {

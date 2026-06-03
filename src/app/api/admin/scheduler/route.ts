@@ -46,6 +46,17 @@ const DEFAULT_TASKS = [
     maxPages: 18,
     notes: "Revisit online chain stores, refresh branch locations nationally, then run offer verification for the category.",
   },
+  {
+    name: "Regional seed",
+    taskType: "regional_seed",
+    frequency: "monthly",
+    timeOfDay: "05:00",
+    dayOfMonth: 3,
+    enabled: false,
+    deepMode: true,
+    maxPages: 5,
+    notes: "Run regional seed scripts for supported categories. Use selected categories to limit scope.",
+  },
 ];
 
 function parseTimeOfDay(timeOfDay: string) {

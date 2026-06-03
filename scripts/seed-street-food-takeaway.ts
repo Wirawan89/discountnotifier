@@ -681,7 +681,7 @@ const newlyAddedStoreNames = new Set([
 
 function createOffer(storeName: string, matchedUrl: string, matchedKeywords: string[]) {
   const startDate = new Date();
-  const endDate = getLiveVerifiedOfferEndDate(startDate);
+  const endDate = getLiveVerifiedOfferEndDate(startDate, "dining");
 
   const title = matchedKeywords.some((keyword) => /happy hour/i.test(keyword))
     ? `${storeName} Happy Hour and Special Offers`

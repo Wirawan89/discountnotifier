@@ -11,6 +11,7 @@ const MEMBERSHIP_PRIORITY: Record<string, number> = {
   Gold: 1,
   Silver: 2,
 };
+const PROMOTION_SCHEDULE_TYPES = new Set(["one_off", "daily", "weekly", "monthly"]);
 const SHARED_DIRECTORY_DOMAINS = new Set([
   "westfield.com.au",
   "stockland.com.au",
@@ -62,6 +63,25 @@ function normalizeOptionalUrl(value: unknown) {
   }
 
   return /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+}
+
+function normalizePromotionScheduleType(value: unknown) {
+  const scheduleType = String(value || "one_off").trim();
+  return PROMOTION_SCHEDULE_TYPES.has(scheduleType) ? scheduleType : "one_off";
+}
+
+function normalizeNumberList(value: unknown, min: number, max: number) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item >= min && item <= max)
+    )
+  ).sort((a, b) => a - b);
 }
 
 function getDomain(value: string) {
@@ -226,11 +246,17 @@ export async function POST(request: Request) {
     const dob = normalizeDate(data.dob);
     const promotionStartDate = normalizeDate(data.promotionStartDate);
     const promotionEndDate = normalizeDate(data.promotionEndDate);
+    const promotionScheduleType = normalizePromotionScheduleType(data.promotionScheduleType);
+    const promotionWeeklyDays = normalizeNumberList(data.promotionWeeklyDays, 1, 7);
+    const promotionMonthlyWeeks = normalizeNumberList(data.promotionMonthlyWeeks, 1, 4);
     const hasPromotionInput = Boolean(
       promotionMessage ||
       data.promotionStartDate ||
       data.promotionEndDate ||
-      data.promotionUrl
+      data.promotionUrl ||
+      promotionScheduleType !== "one_off" ||
+      promotionWeeklyDays.length > 0 ||
+      promotionMonthlyWeeks.length > 0
     );
 
     if (!dob) {
@@ -242,7 +268,21 @@ export async function POST(request: Request) {
 
     if (hasPromotionInput && (!promotionMessage || !promotionStartDate || !promotionEndDate)) {
       return NextResponse.json(
-        { error: "To publish a promotion, enter Promotion Message, From date, and To date." },
+        { error: "To publish or schedule a promotion, enter Promotion Message, From date, and To date." },
+        { status: 400 }
+      );
+    }
+
+    if (promotionScheduleType === "weekly" && promotionWeeklyDays.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one weekday for a weekly promotion schedule." },
+        { status: 400 }
+      );
+    }
+
+    if (promotionScheduleType === "monthly" && promotionMonthlyWeeks.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one week for a monthly promotion schedule." },
         { status: 400 }
       );
     }
@@ -497,6 +537,9 @@ export async function POST(request: Request) {
           url: normalizedUrl,
           categoryId: store.categoryId,
           promotionUrl,
+          promotionScheduleType,
+          promotionWeeklyDays,
+          promotionMonthlyWeeks,
           promotionMessage,
           promotionStartDate: promotionStartDate || new Date(),
           promotionEndDate: promotionEndDate || new Date(),
@@ -517,6 +560,9 @@ export async function POST(request: Request) {
             storeId: store.id,
             message: promotionMessage,
             url: promotionUrl,
+            scheduleType: promotionScheduleType,
+            weeklyDays: promotionWeeklyDays,
+            monthlyWeeks: promotionMonthlyWeeks,
             startDate: promotionStartDate,
             endDate: promotionEndDate,
             priority: promotionPriority,

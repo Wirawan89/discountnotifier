@@ -32,6 +32,7 @@ export type Discount = {
   description?: string | null;
   startDate: string;
   endDate: string;
+  updatedAt?: string;
   image?: string | null;
   coupon?: string | null;
   eCatalog?: string[];
@@ -42,6 +43,9 @@ export type StorePromotion = {
   storeId: number;
   message: string;
   url?: string | null;
+  scheduleType?: string;
+  weeklyDays?: number[];
+  monthlyWeeks?: number[];
   startDate: string;
   endDate: string;
   priority?: number;

@@ -68,7 +68,7 @@ function createGenericOffer(
   profile: "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel"
 ) {
   const startDate = new Date();
-  const endDate = getLiveVerifiedOfferEndDate(startDate);
+  const endDate = getLiveVerifiedOfferEndDate(startDate, profile);
   const hasEofyOffer = matchedKeywords.some((keyword) => /eofy|end of financial year/i.test(keyword));
   const hasHappyHour = matchedKeywords.some((keyword) => /happy hour/i.test(keyword));
 
@@ -195,7 +195,10 @@ async function main() {
               title: offer.title,
             },
           },
-          update: offer,
+          update: {
+            ...offer,
+            updatedAt: new Date(),
+          },
           create: {
             storeId: store.id,
             ...offer,
@@ -233,13 +236,16 @@ async function main() {
       }
 
       if (result.hasOffer) {
+        const profile = getVerifierProfile(store.category.name);
+
         await prisma.discount.update({
           where: {
             id: discount.id,
           },
           data: {
-            endDate: getLiveVerifiedOfferEndDate(),
+            endDate: getLiveVerifiedOfferEndDate(new Date(), profile),
             ...(result.matchedUrl ? { eCatalog: [result.matchedUrl] } : {}),
+            updatedAt: new Date(),
           },
         });
 

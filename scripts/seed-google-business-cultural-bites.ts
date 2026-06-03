@@ -405,7 +405,7 @@ function googleSearchUrl(query: string) {
 
 function createOffer(storeName: string, matchedUrl: string, matchedKeywords: string[]) {
   const startDate = new Date();
-  const endDate = getLiveVerifiedOfferEndDate(startDate);
+  const endDate = getLiveVerifiedOfferEndDate(startDate, "dining");
 
   return {
     title: `${storeName} Special Offers`,

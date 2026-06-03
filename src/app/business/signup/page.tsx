@@ -23,6 +23,9 @@ type BusinessForm = {
   country: string;
   url: string;
   promotionUrl: string;
+  promotionScheduleType: string;
+  promotionWeeklyDays: number[];
+  promotionMonthlyWeeks: number[];
   categoryId: string;
   promotionMessage: string;
   promotionStartDate: string;
@@ -59,6 +62,21 @@ const MAX_PROMOTION_MESSAGE_LENGTH = 96;
 const MAX_IMAGE_DIMENSION = 900;
 const IMAGE_QUALITY = 0.68;
 const australianStates = ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"];
+const weekDays = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 7, label: "Sun" },
+];
+const monthWeeks = [
+  { value: 1, label: "Week 1" },
+  { value: 2, label: "Week 2" },
+  { value: 3, label: "Week 3" },
+  { value: 4, label: "Week 4" },
+];
 const inputClassName =
   "mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
 
@@ -160,7 +178,10 @@ function validateBusinessForm(formData: BusinessForm) {
     formData.promotionMessage.trim() ||
     formData.promotionStartDate ||
     formData.promotionEndDate ||
-    formData.promotionUrl.trim()
+    formData.promotionUrl.trim() ||
+    formData.promotionScheduleType !== "one_off" ||
+    formData.promotionWeeklyDays.length > 0 ||
+    formData.promotionMonthlyWeeks.length > 0
   );
   if (formData.promotionMessage.trim().length > MAX_PROMOTION_MESSAGE_LENGTH) {
     errors.push({
@@ -176,6 +197,12 @@ function validateBusinessForm(formData: BusinessForm) {
   }
   if (hasPromotionInput && !formData.promotionEndDate) {
     errors.push({ field: "promotionEndDate", message: "Promotion To date is required when publishing a promotion." });
+  }
+  if (formData.promotionScheduleType === "weekly" && formData.promotionWeeklyDays.length === 0) {
+    errors.push({ field: "promotionWeeklyDays", message: "Select at least one weekday for weekly schedule." });
+  }
+  if (formData.promotionScheduleType === "monthly" && formData.promotionMonthlyWeeks.length === 0) {
+    errors.push({ field: "promotionMonthlyWeeks", message: "Select at least one monthly week." });
   }
   if (
     formData.promotionStartDate &&
@@ -211,6 +238,9 @@ export default function BusinessSignUpPage() {
     country: "Australia",
     url: "",
     promotionUrl: "",
+    promotionScheduleType: "one_off",
+    promotionWeeklyDays: [],
+    promotionMonthlyWeeks: [],
     categoryId: "",
     promotionMessage: "",
     promotionStartDate: "",
@@ -278,6 +308,22 @@ export default function BusinessSignUpPage() {
       ...current,
       [name]: value,
     }));
+  };
+
+  const toggleNumberSelection = (
+    field: "promotionWeeklyDays" | "promotionMonthlyWeeks",
+    value: number
+  ) => {
+    clearErrors();
+    setFormData((current) => {
+      const selectedValues = current[field];
+      return {
+        ...current,
+        [field]: selectedValues.includes(value)
+          ? selectedValues.filter((selectedValue) => selectedValue !== value)
+          : [...selectedValues, value].sort((a, b) => a - b),
+      };
+    });
   };
 
   const findExistingStoreMatches = async () => {
@@ -875,6 +921,74 @@ export default function BusinessSignUpPage() {
                 />
                 {renderFieldError("promotionEndDate")}
               </div>
+            </div>
+
+            <div className="md:col-span-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <label htmlFor="promotionScheduleType" className="block text-sm font-medium text-gray-700">
+                Schedule Promotion
+              </label>
+              <select
+                id="promotionScheduleType"
+                name="promotionScheduleType"
+                className={inputClassName}
+                value={formData.promotionScheduleType}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    promotionScheduleType: event.target.value,
+                    promotionWeeklyDays: event.target.value === "weekly" ? current.promotionWeeklyDays : [],
+                    promotionMonthlyWeeks: event.target.value === "monthly" ? current.promotionMonthlyWeeks : [],
+                  }))
+                }
+              >
+                <option value="one_off">One-off promotion using From and To dates</option>
+                <option value="daily">Every day within the promotion period</option>
+                <option value="weekly">Weekly on selected days</option>
+                <option value="monthly">Monthly on selected weeks</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                From and To remain the promotion period. Schedule controls define when the offer repeats inside that period.
+              </p>
+
+              {formData.promotionScheduleType === "weekly" && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-gray-700">Weekly days</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {weekDays.map((day) => (
+                      <label key={day.value} className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={formData.promotionWeeklyDays.includes(day.value)}
+                          onChange={() => toggleNumberSelection("promotionWeeklyDays", day.value)}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
+                        {day.label}
+                      </label>
+                    ))}
+                  </div>
+                  {renderFieldError("promotionWeeklyDays")}
+                </div>
+              )}
+
+              {formData.promotionScheduleType === "monthly" && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-gray-700">Monthly weeks</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {monthWeeks.map((week) => (
+                      <label key={week.value} className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={formData.promotionMonthlyWeeks.includes(week.value)}
+                          onChange={() => toggleNumberSelection("promotionMonthlyWeeks", week.value)}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
+                        {week.label}
+                      </label>
+                    ))}
+                  </div>
+                  {renderFieldError("promotionMonthlyWeeks")}
+                </div>
+              )}
             </div>
           </div>
 

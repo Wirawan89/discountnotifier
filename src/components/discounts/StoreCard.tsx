@@ -51,6 +51,25 @@ export default function StoreCard({
 
     return `${new Date(discount.startDate).toLocaleDateString()} - ${new Date(discount.endDate).toLocaleDateString()}`;
   };
+  const getLiveVerifiedNote = (discount: Discount) => {
+    const isLiveVerifiedOffer = /offer wording found on the store website/i.test(discount.description || "");
+
+    if (!isLiveVerifiedOffer) {
+      return null;
+    }
+
+    const verifiedAt = discount.updatedAt || discount.startDate;
+    const verifiedDate = new Date(verifiedAt);
+    const verifiedText = Number.isNaN(verifiedDate.getTime())
+      ? "recently"
+      : verifiedDate.toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+
+    return `Live verified: ${verifiedText}. Click Smart Fetch Discounts for the latest availability.`;
+  };
 
   const handleVisitStore = (event: MouseEvent<HTMLAnchorElement>) => {
     fetch("/api/analytics/access", {
@@ -161,6 +180,11 @@ export default function StoreCard({
                       <div className="text-xs text-gray-600 mt-1">
                         {getOfferPeriodText(discount)}
                       </div>
+                      {getLiveVerifiedNote(discount) && (
+                        <div className="mt-1 text-[11px] leading-snug text-gray-500">
+                          {getLiveVerifiedNote(discount)}
+                        </div>
+                      )}
                     </a>
                   ))}
                   {storeDiscounts.length < 2 &&

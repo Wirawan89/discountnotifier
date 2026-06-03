@@ -92,7 +92,7 @@ function buildDiscountFetchPrompt(categoryName: string, country: string): string
     electronicsInstruction,
     'Before including an offer, check the store homepage and at least one relevant second page such as sale, deals, clearance, hot deals, offers, promotions, or outlet.',
     'Only include a discount when the checked page visibly uses wording such as Discount, Sale, Clearance, Deal, Hot Deal, Offer, Promo, Outlet, or Save. If no matching wording is visible for a store, include the store with an empty discounts array.',
-    'Only include offers whose endDate is today or in the future. If an exact end date is not published, use a conservative date 2 days from today and say in the description that availability should be checked on the store website.',
+    'Only include offers whose endDate is today or in the future. If an exact end date is not published, use a conservative date: 7 days for retail/travel/services, 5 days for entertainment, and 2 days for dining/cafe/takeaway offers. Say in the description that availability should be checked on the store website.',
     'Return JSON only. Do not include markdown, citations, comments, prose, or code fences.',
     'Use this exact structure:',
     '[{"name":"Store Name","url":"https://store.com","suburb":"Suburb Name","city":"City Name","country":"Country Name","discounts":[{"title":"Discount Title","description":"Description","percentage":20,"coupon":"SAVE20","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","eCatalog":["https://store.com/sale-page"]}]}]'
@@ -189,8 +189,16 @@ async function callGeminiForCategory(categoryName: string, country: string): Pro
 
 export async function POST(request: Request) {
   try {
-    const { categoryId, country: requestedCountry, providers = ['openrouter'] } = await request.json();
+    const {
+      categoryId,
+      country: requestedCountry,
+      providers = ['openrouter'],
+      suburbs,
+    } = await request.json();
     const country = normalizeCountry(requestedCountry);
+    const scopedSuburbs = Array.isArray(suburbs)
+      ? suburbs.map((suburb) => String(suburb).trim()).filter(Boolean)
+      : [];
     
     if (!categoryId) {
       return NextResponse.json({ error: 'Category ID is required' }, { status: 400 });
@@ -213,7 +221,10 @@ export async function POST(request: Request) {
       category.name,
       () => callMultipleProviders(category.name, country, providers),
       providers,
-      country
+      country,
+      {
+        suburbs: scopedSuburbs,
+      }
     );
 
     if (result.success) {

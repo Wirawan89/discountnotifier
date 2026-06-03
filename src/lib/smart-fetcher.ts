@@ -20,6 +20,10 @@ export interface FetchResult {
   nextFetchDate?: Date;
 }
 
+export interface SmartFetchScope {
+  suburbs?: string[];
+}
+
 export class SmartFetcher {
   private static buildCountryWhere(country?: string) {
     const normalizedCountry = country && country.trim().length > 0 ? country.trim() : DEFAULT_COUNTRY;
@@ -350,9 +354,57 @@ export class SmartFetcher {
     categoryName: string,
     _fetchFunction: () => Promise<any>,
     _providers: string[] = ['openrouter', 'claude'],
-    country: string = DEFAULT_COUNTRY
+    country: string = DEFAULT_COUNTRY,
+    scope: SmartFetchScope = {}
   ): Promise<FetchResult> {
     try {
+      const scopedSuburbs = Array.from(
+        new Set((scope.suburbs || []).map((suburb) => suburb.trim()).filter(Boolean))
+      );
+      const isScopedFetch = scopedSuburbs.length > 0;
+
+      if (isScopedFetch) {
+        console.log(
+          `Verifying scoped stores for category: ${categoryName} in suburb(s): ${scopedSuburbs.join(', ')}`
+        );
+
+        const existingVerificationResult = await DiscountFetcher.verifyExistingCategoryStores(
+          categoryId,
+          categoryName,
+          country,
+          {
+            concurrency: SMART_FETCH_VERIFY_CONCURRENCY,
+            maxPagesPerStore: SMART_FETCH_MAX_PAGES_PER_STORE,
+            requestTimeoutMs: SMART_FETCH_REQUEST_TIMEOUT_MS,
+            suburbs: scopedSuburbs,
+          }
+        );
+        const totalStores = existingVerificationResult.stats.totalStores;
+        const totalDiscounts = existingVerificationResult.stats.totalDiscounts;
+
+        return {
+          success: true,
+          message:
+            totalStores > 0
+              ? `Verified ${totalStores} existing store${totalStores === 1 ? '' : 's'} for ${categoryName} in ${scopedSuburbs.join(', ')}.`
+              : `No existing ${country} stores found for ${categoryName} in ${scopedSuburbs.join(', ')}.`,
+          data: existingVerificationResult.stores,
+          errors: existingVerificationResult.errors,
+          stats: {
+            ...existingVerificationResult.stats,
+            existingStoresVerified: totalStores,
+            existingVerificationErrors: existingVerificationResult.errors.length,
+            aiProviderUsed: false,
+            maxPagesPerStore: SMART_FETCH_MAX_PAGES_PER_STORE,
+            requestTimeoutMs: SMART_FETCH_REQUEST_TIMEOUT_MS,
+            wasCached: false,
+            scoped: true,
+            suburbs: scopedSuburbs,
+          },
+          wasCached: false,
+        };
+      }
+
       const reservation = await this.reserveCategoryFetch(categoryId);
 
       if (!reservation.reserved) {
@@ -413,7 +465,7 @@ export class SmartFetcher {
         success: true,
         message:
           totalStores > 0
-            ? `Verified existing stores for ${categoryName} without AI token usage.`
+            ? `Verified existing stores for ${categoryName}.`
             : `No existing ${country} stores found for ${categoryName}. Add stores manually or use a separate deep discovery flow.`,
         data: existingVerificationResult.stores,
         errors: existingVerificationResult.errors,

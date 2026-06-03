@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 
 interface Notification {
@@ -42,6 +42,7 @@ interface NotificationResponse {
 
 export default function NotificationBell() {
   const { data: session } = useSession();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [verifiedStores, setVerifiedStores] = useState<VerifiedStore[]>([]);
   const [verifiedOfferCount, setVerifiedOfferCount] = useState(0);
@@ -58,6 +59,19 @@ export default function NotificationBell() {
       fetchNotifications();
     }
   }, [session]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [isOpen]);
 
   const fetchNotifications = async () => {
     try {
@@ -131,7 +145,7 @@ export default function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => {
           const nextIsOpen = !isOpen;
@@ -140,11 +154,11 @@ export default function NotificationBell() {
             fetchNotifications();
           }
         }}
-        className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 shadow-sm ring-1 ring-red-100 transition hover:scale-105 hover:bg-red-100 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 sm:h-10 sm:w-10"
         aria-label="Open notifications"
       >
         <svg
-          className="w-6 h-6"
+          className="h-5 w-5 sm:h-6 sm:w-6"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

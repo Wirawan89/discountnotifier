@@ -11,6 +11,7 @@ type Feedback = {
   message: string;
   status: string;
   source: string;
+  categoryName?: string | null;
   createdAt: string;
 };
 
@@ -112,6 +113,16 @@ export default function FeedbackPage() {
                       <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
                         {item.status}
                       </span>
+                      {item.source === "store_suggestion" && (
+                        <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">
+                          Store suggestion
+                        </span>
+                      )}
+                      {item.categoryName && (
+                        <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
+                          {item.categoryName}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-gray-500">
                       {[item.name, item.email].filter(Boolean).join(" · ") || "Anonymous"} · {new Date(item.createdAt).toLocaleString()}

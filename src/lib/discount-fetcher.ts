@@ -51,6 +51,7 @@ export interface ExistingStoreVerifyOptions {
   concurrency?: number;
   maxPagesPerStore?: number;
   requestTimeoutMs?: number;
+  suburbs?: string[];
 }
 
 function getVerifierProfile(categoryName?: string): 'retail' | 'retailShop' | 'dining' | 'entertainment' | 'services' | 'travel' {
@@ -382,12 +383,11 @@ export class DiscountFetcher {
     categoryName?: string
   ): DiscountData {
     const startDate = new Date();
-    const endDate = getLiveVerifiedOfferEndDate(startDate);
-
     const matchedText = matchedKeywords.length > 0 ? matchedKeywords.join(', ') : 'offer';
     const hasEofyOffer = matchedKeywords.some((keyword) => /eofy|end of financial year/i.test(keyword));
     const hasHappyHour = matchedKeywords.some((keyword) => /happy hour/i.test(keyword));
     const profile = getVerifierProfile(categoryName);
+    const endDate = getLiveVerifiedOfferEndDate(startDate, profile);
 
     return {
       title:
@@ -408,6 +408,25 @@ export class DiscountFetcher {
       startDate: startDate.toISOString().slice(0, 10),
       endDate: endDate.toISOString().slice(0, 10),
       eCatalog: [matchedUrl],
+    };
+  }
+
+  private static refreshVerifiedDiscount(
+    discount: DiscountData,
+    matchedUrl: string | undefined,
+    matchedKeywords: string[],
+    categoryName?: string
+  ): DiscountData {
+    const startDate = new Date();
+    const endDate = getLiveVerifiedOfferEndDate(startDate, getVerifierProfile(categoryName));
+    const matchedText = matchedKeywords.length > 0 ? matchedKeywords.join(', ') : 'offer';
+
+    return {
+      ...discount,
+      description: `Offer wording found on the store website (${matchedText}). Check the store website for live availability.`,
+      startDate: startDate.toISOString().slice(0, 10),
+      endDate: endDate.toISOString().slice(0, 10),
+      eCatalog: matchedUrl ? [matchedUrl] : discount.eCatalog,
     };
   }
 
@@ -505,8 +524,12 @@ export class DiscountFetcher {
       return {
         ...store,
         discounts: store.discounts.map((discount) => ({
-          ...discount,
-          eCatalog: storeResult.matchedUrl ? [storeResult.matchedUrl] : discount.eCatalog,
+          ...this.refreshVerifiedDiscount(
+            discount,
+            storeResult.matchedUrl,
+            storeResult.matchedKeywords,
+            categoryName
+          ),
         })),
       };
     }
@@ -522,10 +545,14 @@ export class DiscountFetcher {
       verificationResults.push(discountResult);
 
       if (discountResult.hasOffer) {
-        verifiedDiscounts.push({
-          ...discount,
-          eCatalog: discountResult.matchedUrl ? [discountResult.matchedUrl] : discount.eCatalog,
-        });
+        verifiedDiscounts.push(
+          this.refreshVerifiedDiscount(
+            discount,
+            discountResult.matchedUrl,
+            discountResult.matchedKeywords,
+            categoryName
+          )
+        );
         console.log(
           `Verified offer wording for ${store.name} discount "${discount.title}" on ${discountResult.matchedUrl}: ${discountResult.matchedKeywords.join(', ')}`
         );
@@ -648,11 +675,37 @@ export class DiscountFetcher {
             ],
           }
         : { country: normalizedCountry };
+    const scopedSuburbs = Array.from(
+      new Set(
+        (options.suburbs || [])
+          .map((suburb) => suburb.trim())
+          .filter((suburb) => suburb.length > 0)
+      )
+    );
+    const suburbWhere:
+      | {
+          OR: Array<
+            | { suburb: { equals: string; mode: 'insensitive' } }
+            | { city: { equals: string; mode: 'insensitive' } }
+          >;
+        }
+      | undefined =
+      scopedSuburbs.length > 0
+        ? {
+            OR: scopedSuburbs.flatMap((suburb) => [
+              { suburb: { equals: suburb, mode: 'insensitive' as const } },
+              { city: { equals: suburb, mode: 'insensitive' as const } },
+            ]),
+          }
+        : undefined;
 
     const dbStores = await prisma.store.findMany({
       where: {
         categoryId,
-        ...countryWhere,
+        AND: [
+          countryWhere,
+          ...(suburbWhere ? [suburbWhere] : []),
+        ],
         NOT: {
           locationSource: 'closed',
         },
@@ -807,6 +860,7 @@ export class DiscountFetcher {
                 percentage: discountData.percentage,
                 coupon: discountData.coupon,
                 eCatalog: discountData.eCatalog,
+                updatedAt: new Date(),
               },
               create: {
                 storeId: dbStore.id,

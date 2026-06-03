@@ -55,6 +55,7 @@ const COMMON_LOCATOR_PATHS = [
   "/findastore/",
   "/find-us",
   "/find-us/",
+  "/pages/our-stores",
   "/pages/store-locator",
   "/pages/stores",
   "/pages/stockists",
@@ -609,6 +610,35 @@ function extractRegexLocations(html: string) {
   return locations;
 }
 
+function extractLabelledAustralianLocations(html: string) {
+  const text = normalizeText(html);
+  const locations: ExtractedLocation[] = [];
+  const pattern = new RegExp(
+    `\\b([A-Z][A-Za-z'&./ -]{1,60}\\b(?:Flagship|Village|Store|Boutique|Shop|Location))\\s+((?:Shop|Shops|Suite|Unit|Level|Lot|Tenancy|T|Kiosk|Ground Floor|G\\/F|\\d)[A-Za-z0-9'&./, -]{4,140}?\\s+${AU_STATE_TEXT_PATTERN}\\s+\\d{4})\\s+Australia\\b`,
+    "gi"
+  );
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text))) {
+    const label = normalizeText(match[1])
+      .replace(/^(?:Drop by the|Visit|Find us at|Location)\s+/i, "")
+      .trim();
+    const fallbackSuburb = label.replace(/\b(?:Flagship|Village|Store|Boutique|Shop|Location)\b/gi, "").trim();
+    const location = parseAustralianAddressLine(match[2], fallbackSuburb);
+
+    if (!location) {
+      continue;
+    }
+
+    locations.push({
+      ...location,
+      label,
+    });
+  }
+
+  return dedupeLocations(locations);
+}
+
 function dedupeLocations(locations: ExtractedLocation[]) {
   const seen = new Set<string>();
   const deduped: ExtractedLocation[] = [];
@@ -626,6 +656,10 @@ function dedupeLocations(locations: ExtractedLocation[]) {
 }
 
 function branchName(baseName: string, location: ExtractedLocation) {
+  if (/^Maple Store\b/i.test(baseName) && location.label) {
+    return `Maple Store ${normalizeText(location.label)}`.replace(/\s+/g, " ").trim();
+  }
+
   const suburbPattern = location.suburb.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const locationLabel = normalizeText(location.label || "");
   const base = baseName
@@ -6392,6 +6426,7 @@ async function discoverLocations(store: { name: string; url: string; catalogs: s
     locations.push(...extractDataAttributeLocations(text));
     locations.push(...extractDemandwareStoreLocatorLocations(text));
     locations.push(...extractRegexLocations(text));
+    locations.push(...extractLabelledAustralianLocations(text));
 
     if (/<html|<!doctype html/i.test(text)) {
       for (const linkedCandidate of extractLocatorLinks(text, candidate.url)) {

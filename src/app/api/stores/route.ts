@@ -35,6 +35,32 @@ function buildCountryWhere(country: string | null) {
   return { country: normalizedCountry };
 }
 
+function currentMonthlyWeek(date: Date) {
+  return Math.min(4, Math.floor((date.getDate() - 1) / 7) + 1);
+}
+
+function isScheduledForDate(
+  scheduleType: string,
+  weeklyDays: number[],
+  monthlyWeeks: number[],
+  date: Date
+) {
+  if (scheduleType === 'daily' || scheduleType === 'one_off') {
+    return true;
+  }
+
+  if (scheduleType === 'weekly') {
+    const day = date.getDay() === 0 ? 7 : date.getDay();
+    return weeklyDays.includes(day);
+  }
+
+  if (scheduleType === 'monthly') {
+    return monthlyWeeks.includes(currentMonthlyWeek(date));
+  }
+
+  return true;
+}
+
 // GET: List all stores
 export async function GET(request: Request) {
   console.log('HIT /api/stores');
@@ -112,7 +138,19 @@ export async function GET(request: Request) {
         name: 'asc',
       },
     });
-    return NextResponse.json(stores);
+    return NextResponse.json(
+      stores.map((store) => ({
+        ...store,
+        promotions: store.promotions.filter((promotion) =>
+          isScheduledForDate(
+            promotion.scheduleType,
+            promotion.weeklyDays,
+            promotion.monthlyWeeks,
+            now
+          )
+        ),
+      }))
+    );
   } catch (error) {
     console.error('Error in /api/stores:', error, JSON.stringify(error, null, 2));
     return NextResponse.json({ error: 'Failed to fetch stores' }, { status: 500 });

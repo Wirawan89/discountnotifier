@@ -102,6 +102,18 @@ function runReverifyForCategories(categoryNames: string[], createMissing: boolea
   }
 }
 
+function runRegionalSeedForCategories(categoryNames: string[]) {
+  const supportedCategories = categoryNames.filter((categoryName) =>
+    ["Dining & Beverages", "Food & Groceries"].includes(categoryName)
+  );
+
+  const targets = supportedCategories.length > 0 ? supportedCategories : ["Dining & Beverages"];
+
+  for (const categoryName of targets) {
+    run("npx", ["tsx", "scripts/run-regional-seed.ts", `--category=${categoryName}`]);
+  }
+}
+
 async function main() {
   const now = new Date();
   const dueTasks = await prisma.adminScheduledTask.findMany({
@@ -157,6 +169,8 @@ async function main() {
         runReverifyForCategories(await taskCategoryNames(task), true);
       } else if (task.taskType === "offers_reverify") {
         runReverifyForCategories(await taskCategoryNames(task), true);
+      } else if (task.taskType === "regional_seed") {
+        runRegionalSeedForCategories(await taskCategoryNames(task));
       } else {
         await prisma.adminScheduledTask.update({
           where: { id: task.id },

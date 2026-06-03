@@ -5,6 +5,7 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 
 const MAX_PROMOTION_MESSAGE_LENGTH = 96;
 const MAX_SHOWCASE_PAYLOAD_BYTES = 1_500_000;
+const PROMOTION_SCHEDULE_TYPES = new Set(["one_off", "daily", "weekly", "monthly"]);
 
 function normalizeDate(value: unknown) {
   if (typeof value !== "string" || !value.trim()) {
@@ -36,6 +37,25 @@ function normalizeOptionalUrl(value: unknown) {
   }
 
   return /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+}
+
+function normalizePromotionScheduleType(value: unknown) {
+  const scheduleType = String(value || "one_off").trim();
+  return PROMOTION_SCHEDULE_TYPES.has(scheduleType) ? scheduleType : "one_off";
+}
+
+function normalizeNumberList(value: unknown, min: number, max: number) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item >= min && item <= max)
+    )
+  ).sort((a, b) => a - b);
 }
 
 async function getBusinessForSession() {
@@ -102,6 +122,9 @@ export async function GET() {
       store: business.store,
       promotionMessage: business.promotionMessage,
       promotionUrl: business.promotionUrl ?? "",
+      promotionScheduleType: business.promotionScheduleType,
+      promotionWeeklyDays: business.promotionWeeklyDays,
+      promotionMonthlyWeeks: business.promotionMonthlyWeeks,
       promotionStartDate: formatDateInput(business.promotionStartDate),
       promotionEndDate: formatDateInput(business.promotionEndDate),
       showcaseImages: business.showcaseImages,
@@ -133,14 +156,26 @@ export async function PUT(request: Request) {
     const data = await request.json();
     const promotionMessage = String(data.promotionMessage || "").trim();
     const promotionUrl = normalizeOptionalUrl(data.promotionUrl);
+    const promotionScheduleType = normalizePromotionScheduleType(data.promotionScheduleType);
+    const promotionWeeklyDays = normalizeNumberList(data.promotionWeeklyDays, 1, 7);
+    const promotionMonthlyWeeks = normalizeNumberList(data.promotionMonthlyWeeks, 1, 4);
     const promotionStartDate = normalizeDate(data.promotionStartDate);
     const promotionEndDate = normalizeDate(data.promotionEndDate);
     const showcaseImages = cleanImages(data.showcaseImages);
     const showcasePayloadBytes = Buffer.byteLength(showcaseImages.join(""), "utf8");
+    const hasPromotionInput = Boolean(
+      promotionMessage ||
+      data.promotionUrl ||
+      data.promotionStartDate ||
+      data.promotionEndDate ||
+      promotionScheduleType !== "one_off" ||
+      promotionWeeklyDays.length > 0 ||
+      promotionMonthlyWeeks.length > 0
+    );
 
-    if (!promotionMessage) {
+    if (hasPromotionInput && !promotionMessage) {
       return NextResponse.json(
-        { error: "Promotion Message is required" },
+        { error: "Promotion Message is required when publishing or scheduling a promotion." },
         { status: 400 }
       );
     }
@@ -152,16 +187,30 @@ export async function PUT(request: Request) {
       );
     }
 
-    if (!promotionStartDate || !promotionEndDate) {
+    if (hasPromotionInput && (!promotionStartDate || !promotionEndDate)) {
       return NextResponse.json(
-        { error: "Promotion dates must be valid dates" },
+        { error: "Promotion dates must be valid dates when publishing or scheduling a promotion." },
         { status: 400 }
       );
     }
 
-    if (promotionEndDate < promotionStartDate) {
+    if (promotionStartDate && promotionEndDate && promotionEndDate < promotionStartDate) {
       return NextResponse.json(
         { error: "Promotion end date must be after the start date" },
+        { status: 400 }
+      );
+    }
+
+    if (promotionScheduleType === "weekly" && promotionWeeklyDays.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one weekday for a weekly promotion schedule." },
+        { status: 400 }
+      );
+    }
+
+    if (promotionScheduleType === "monthly" && promotionMonthlyWeeks.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one week for a monthly promotion schedule." },
         { status: 400 }
       );
     }
@@ -195,8 +244,11 @@ export async function PUT(request: Request) {
         data: {
           promotionMessage,
           promotionUrl,
-          promotionStartDate,
-          promotionEndDate,
+          promotionScheduleType,
+          promotionWeeklyDays,
+          promotionMonthlyWeeks,
+          promotionStartDate: promotionStartDate || new Date(),
+          promotionEndDate: promotionEndDate || new Date(),
           showcaseImages,
           aiImageTextEnabled: Boolean(data.aiImageTextEnabled),
           aiImageTextPrompt: data.aiImageTextPrompt ? String(data.aiImageTextPrompt).trim() : null,
@@ -227,7 +279,20 @@ export async function PUT(request: Request) {
           },
         });
 
-        if (existingPromotion) {
+        if (!hasPromotionInput) {
+          await tx.promotion.updateMany({
+            where: {
+              businessId: business.id,
+              storeId: business.storeId,
+              source: {
+                startsWith: "business",
+              },
+            },
+            data: {
+              status: "inactive",
+            },
+          });
+        } else if (existingPromotion && promotionStartDate && promotionEndDate) {
           await tx.promotion.update({
             where: {
               id: existingPromotion.id,
@@ -235,18 +300,24 @@ export async function PUT(request: Request) {
             data: {
               message: promotionMessage,
               url: promotionUrl,
+              scheduleType: promotionScheduleType,
+              weeklyDays: promotionWeeklyDays,
+              monthlyWeeks: promotionMonthlyWeeks,
               startDate: promotionStartDate,
               endDate: promotionEndDate,
               status: "active",
             },
           });
-        } else {
+        } else if (promotionStartDate && promotionEndDate) {
           await tx.promotion.create({
             data: {
               businessId: business.id,
               storeId: business.storeId,
               message: promotionMessage,
               url: promotionUrl,
+              scheduleType: promotionScheduleType,
+              weeklyDays: promotionWeeklyDays,
+              monthlyWeeks: promotionMonthlyWeeks,
               startDate: promotionStartDate,
               endDate: promotionEndDate,
               priority:
@@ -273,7 +344,16 @@ export async function PUT(request: Request) {
           },
         });
 
-        if (existingDiscount) {
+        if (!hasPromotionInput) {
+          await tx.discount.deleteMany({
+            where: {
+              storeId: business.storeId,
+              description: {
+                startsWith: "Business promotion submitted",
+              },
+            },
+          });
+        } else if (existingDiscount && promotionStartDate && promotionEndDate) {
           await tx.discount.update({
             where: {
               id: existingDiscount.id,
@@ -286,7 +366,7 @@ export async function PUT(request: Request) {
               eCatalog: promotionUrl ? [promotionUrl] : showcaseImages,
             },
           });
-        } else {
+        } else if (promotionStartDate && promotionEndDate) {
           await tx.discount.create({
             data: {
               storeId: business.storeId,
@@ -305,18 +385,20 @@ export async function PUT(request: Request) {
           },
         });
 
-        await Promise.all(
-          showcaseImages.map((_, index) =>
-            tx.showcase.create({
-              data: {
-                storeId: business.storeId as number,
-                window: index + 1,
-                startDate: promotionStartDate,
-                endDate: promotionEndDate,
-              },
-            })
-          )
-        );
+        if (promotionStartDate && promotionEndDate) {
+          await Promise.all(
+            showcaseImages.map((_, index) =>
+              tx.showcase.create({
+                data: {
+                  storeId: business.storeId as number,
+                  window: index + 1,
+                  startDate: promotionStartDate,
+                  endDate: promotionEndDate,
+                },
+              })
+            )
+          );
+        }
       }
 
       return savedBusiness;
@@ -326,6 +408,9 @@ export async function PUT(request: Request) {
       id: updatedBusiness.id,
       promotionMessage: updatedBusiness.promotionMessage,
       promotionUrl: updatedBusiness.promotionUrl ?? "",
+      promotionScheduleType: updatedBusiness.promotionScheduleType,
+      promotionWeeklyDays: updatedBusiness.promotionWeeklyDays,
+      promotionMonthlyWeeks: updatedBusiness.promotionMonthlyWeeks,
       promotionStartDate: formatDateInput(updatedBusiness.promotionStartDate),
       promotionEndDate: formatDateInput(updatedBusiness.promotionEndDate),
       showcaseImages: updatedBusiness.showcaseImages,

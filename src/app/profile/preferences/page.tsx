@@ -28,6 +28,9 @@ interface BusinessPreference {
   category: Category;
   promotionMessage: string;
   promotionUrl: string;
+  promotionScheduleType: string;
+  promotionWeeklyDays: number[];
+  promotionMonthlyWeeks: number[];
   promotionStartDate: string;
   promotionEndDate: string;
   showcaseImages: string[];
@@ -41,6 +44,21 @@ const emptyImageSlots = Array.from({ length: 6 });
 const MAX_PROMOTION_MESSAGE_LENGTH = 96;
 const MAX_IMAGE_DIMENSION = 900;
 const IMAGE_QUALITY = 0.68;
+const weekDays = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 7, label: "Sun" },
+];
+const monthWeeks = [
+  { value: 1, label: "Week 1" },
+  { value: 2, label: "Week 2" },
+  { value: 3, label: "Week 3" },
+  { value: 4, label: "Week 4" },
+];
 const inputClassName =
   "mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-green-500 focus:outline-none focus:ring-green-500";
 
@@ -270,6 +288,21 @@ export default function PreferencesPage() {
     );
   };
 
+  const toggleBusinessScheduleValue = (
+    field: "promotionWeeklyDays" | "promotionMonthlyWeeks",
+    value: number
+  ) => {
+    if (!businessPreferences) return;
+
+    const selectedValues = businessPreferences[field];
+    updateBusinessPreference(
+      field,
+      (selectedValues.includes(value)
+        ? selectedValues.filter((selectedValue) => selectedValue !== value)
+        : [...selectedValues, value].sort((a, b) => a - b)) as BusinessPreference[typeof field]
+    );
+  };
+
   const handleBusinessImageChange = async (slotIndex: number, file?: File) => {
     if (!file || !businessPreferences) return;
 
@@ -403,6 +436,71 @@ export default function PreferencesPage() {
                 value={businessPreferences.promotionEndDate}
                 onChange={(event) => updateBusinessPreference("promotionEndDate", event.target.value)}
               />
+            </div>
+            <div className="md:col-span-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <label className="block text-sm font-medium text-gray-700">Schedule Promotion</label>
+              <select
+                className={inputClassName}
+                value={businessPreferences.promotionScheduleType}
+                onChange={(event) =>
+                  setBusinessPreferences((current) =>
+                    current
+                      ? {
+                          ...current,
+                          promotionScheduleType: event.target.value,
+                          promotionWeeklyDays: event.target.value === "weekly" ? current.promotionWeeklyDays : [],
+                          promotionMonthlyWeeks: event.target.value === "monthly" ? current.promotionMonthlyWeeks : [],
+                        }
+                      : current
+                  )
+                }
+              >
+                <option value="one_off">One-off promotion using From and To dates</option>
+                <option value="daily">Every day within the promotion period</option>
+                <option value="weekly">Weekly on selected days</option>
+                <option value="monthly">Monthly on selected weeks</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Use From and To as the promotion period. Scheduling controls repeat the offer inside that period.
+              </p>
+
+              {businessPreferences.promotionScheduleType === "weekly" && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-gray-700">Weekly days</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {weekDays.map((day) => (
+                      <label key={day.value} className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={businessPreferences.promotionWeeklyDays.includes(day.value)}
+                          onChange={() => toggleBusinessScheduleValue("promotionWeeklyDays", day.value)}
+                          className="h-4 w-4 rounded border-gray-300 text-green-600"
+                        />
+                        {day.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {businessPreferences.promotionScheduleType === "monthly" && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-gray-700">Monthly weeks</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {monthWeeks.map((week) => (
+                      <label key={week.value} className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={businessPreferences.promotionMonthlyWeeks.includes(week.value)}
+                          onChange={() => toggleBusinessScheduleValue("promotionMonthlyWeeks", week.value)}
+                          className="h-4 w-4 rounded border-gray-300 text-green-600"
+                        />
+                        {week.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

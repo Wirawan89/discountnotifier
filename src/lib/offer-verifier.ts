@@ -368,13 +368,16 @@ const RETAIL_SHOP_OFFER_PATHS = [
   "/sale",
   "/sales",
   "/clearance",
-  "/deals",
-  "/outlet",
-  "/women/woman-sale",
-  "/men/man-sale",
   "/collections/sale",
   "/collections/clearance",
+  "/collections/hot-deals",
+  "/collections/deals",
+  "/collections/all-products-on-sale",
+  "/deals",
+  "/outlet",
   "/collections/outlet",
+  "/women/woman-sale",
+  "/men/man-sale",
   "/shop/sale",
 ];
 
@@ -543,6 +546,17 @@ function hasTrustedOfferIntentInUrl(url: string): boolean {
 function hasTrustedRetailShopOfferIntentInUrl(url: string): boolean {
   return /(sale|clearance|clerance|clearence|deal|hot[-\s]?deal|eofy|special[-\s]?price|limited[-\s]?time[-\s]?offer|outlet|markdown|marcdown|reduced|\d+[-\s]?off)/i.test(
     url
+  );
+}
+
+function hasNetworkTrustworthyRetailShopOfferUrl(url: string): boolean {
+  if (NON_OFFER_PAGE_PATTERN.test(url)) {
+    return false;
+  }
+
+  return (
+    hasDirectRetailShopSaleIntentInUrl(url) ||
+    /(?:up[-_\s]?to[-_\s]?)?\d+[-_\s]?off|(?:1\/2|half)[-_\s]?price|clearance|hot[-_\s]?deals?|eofy/i.test(url)
   );
 }
 
@@ -1013,12 +1027,12 @@ function addCommonOfferUrls(
       firstPathSegment &&
       secondPathSegment &&
       /^[a-z]{2}$/i.test(firstPathSegment) &&
-      /^[a-z]{2}(-[a-z]{2})?$/i.test(secondPathSegment)
+      /^[a-z]{2}[-_][a-z]{2}$/i.test(secondPathSegment)
     ) {
       prefixes.push(`/${firstPathSegment}/${secondPathSegment}`);
     }
 
-    if (firstPathSegment && /^[a-z]{2}(-[a-z]{2})?$/i.test(firstPathSegment)) {
+    if (firstPathSegment && /^[a-z]{2}([-_][a-z]{2})?$/i.test(firstPathSegment)) {
       prefixes.push(`/${firstPathSegment}`);
     }
 
@@ -1103,21 +1117,16 @@ export class OfferVerifier {
       const page = await fetchPage(current.url, requestTimeoutMs);
 
       if (!page.ok) {
-        if (current.source === "catalog") {
-          failedCatalogUrls.push({
-            url: current.url,
-            ...page.failure,
-          });
-          continue;
-        }
-
         const matchedKeywords = findKeywordsInUrl(current.url);
         const canTrustOfferUrl =
           options.profile !== "retailShop" && current.source === "discovered";
         const hasTrustedRetailShopCatalogUrl =
           options.profile === "retailShop" &&
-          current.source === "store" &&
-          hasTrustedRetailShopOfferIntentInUrl(current.url);
+          (current.source === "store" || current.source === "catalog" || current.source === "common") &&
+          hasTrustedRetailShopOfferIntentInUrl(current.url) &&
+          (page.failure.reason === "blocked" ||
+            page.failure.status === 403 ||
+            (page.failure.reason === "network" && hasNetworkTrustworthyRetailShopOfferUrl(current.url)));
 
         if (
           (canTrustOfferUrl || hasTrustedRetailShopCatalogUrl) &&
@@ -1133,6 +1142,13 @@ export class OfferVerifier {
             matchedUrl: current.url,
             failedCatalogUrls,
           };
+        }
+
+        if (current.source === "catalog") {
+          failedCatalogUrls.push({
+            url: current.url,
+            ...page.failure,
+          });
         }
 
         continue;

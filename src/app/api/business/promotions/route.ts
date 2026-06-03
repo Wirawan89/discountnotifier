@@ -8,6 +8,32 @@ const MEMBERSHIP_PRIORITY: Record<string, number> = {
   Silver: 2,
 };
 
+function currentMonthlyWeek(date: Date) {
+  return Math.min(4, Math.floor((date.getDate() - 1) / 7) + 1);
+}
+
+function isScheduledForDate(
+  scheduleType: string,
+  weeklyDays: number[],
+  monthlyWeeks: number[],
+  date: Date
+) {
+  if (scheduleType === "daily" || scheduleType === "one_off") {
+    return true;
+  }
+
+  if (scheduleType === "weekly") {
+    const day = date.getDay() === 0 ? 7 : date.getDay();
+    return weeklyDays.includes(day);
+  }
+
+  if (scheduleType === "monthly") {
+    return monthlyWeeks.includes(currentMonthlyWeek(date));
+  }
+
+  return true;
+}
+
 export async function GET() {
   try {
     const now = new Date();
@@ -42,6 +68,14 @@ export async function GET() {
     });
 
     const prioritizedPromotions = businesses
+      .filter((business) =>
+        isScheduledForDate(
+          business.promotionScheduleType,
+          business.promotionWeeklyDays,
+          business.promotionMonthlyWeeks,
+          now
+        )
+      )
       .sort((a, b) => {
         const membershipDifference =
           (MEMBERSHIP_PRIORITY[a.membershipType] ?? 99) -
