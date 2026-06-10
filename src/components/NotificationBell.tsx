@@ -154,7 +154,7 @@ export default function NotificationBell() {
             fetchNotifications();
           }
         }}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 shadow-sm ring-1 ring-red-100 transition hover:scale-105 hover:bg-red-100 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 sm:h-10 sm:w-10"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-white/35 text-red-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_8px_20px_rgba(239,68,68,0.16)] ring-1 ring-red-200/40 backdrop-blur-xl transition hover:scale-105 hover:bg-white/55 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 sm:h-10 sm:w-10"
         aria-label="Open notifications"
       >
         <svg

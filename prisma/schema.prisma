@@ -351,6 +351,16 @@ model AdminScheduledTask {
   @@index([nextRunAt])
 }
 
+model AdminFeatureFlag {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  label       String
+  description String?
+  isEnabled   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Feedback {
   id         Int      @id @default(autoincrement())
   senderType String   @default("user") // user, business, visitor

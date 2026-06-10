@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { updateCatalogUrlHealth } from './catalog-health';
 import { getLiveVerifiedOfferEndDate } from './offer-lifecycle';
 import { OfferVerifier, type OfferVerificationResult, type OfferVerifierOptions } from './offer-verifier';
+import { verifierOptionsForStoreCandidate } from './store-candidate-validator';
 
 const EXISTING_STORE_VERIFY_CONCURRENCY = 3;
 export const SMART_FETCH_VERIFY_CONCURRENCY = 10;
@@ -138,6 +139,13 @@ function getStoreVerificationUrl(store: StoreData) {
   }
 
   return store.websiteUrl || store.url;
+}
+
+function verifierOptionsForStore(store: StoreData): Pick<
+  OfferVerifierOptions,
+  'disableCommonOfferUrls' | 'disableDiscoveredOfferLinks' | 'requireProductDiscountEvidence'
+> {
+  return verifierOptionsForStoreCandidate(store.name);
 }
 
 // Data validation utilities
@@ -484,6 +492,7 @@ export class DiscountFetcher {
       const result = await OfferVerifier.verifyStoreOfferPages(verificationUrl, store.catalogs, {
         country: store.country,
         profile: getVerifierProfile(categoryName),
+        ...verifierOptionsForStore(store),
         ...verifierOptions,
       });
       await this.updateStoreCatalogHealth(dbStoreId, store, [result]);
@@ -512,6 +521,7 @@ export class DiscountFetcher {
     const storeResult = await OfferVerifier.verifyStoreOfferPages(verificationUrl, store.catalogs, {
       country: store.country,
       profile: getVerifierProfile(categoryName),
+      ...verifierOptionsForStore(store),
       ...verifierOptions,
     });
     const verificationResults = [storeResult];
@@ -540,7 +550,12 @@ export class DiscountFetcher {
       const discountResult = await OfferVerifier.verifyStoreOfferPages(
         verificationUrl,
         discount.eCatalog || [],
-        { country: store.country, profile: getVerifierProfile(categoryName), ...verifierOptions }
+        {
+          country: store.country,
+          profile: getVerifierProfile(categoryName),
+          ...verifierOptionsForStore(store),
+          ...verifierOptions,
+        }
       );
       verificationResults.push(discountResult);
 

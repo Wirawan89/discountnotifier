@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { validateStoreCandidate } from "../src/lib/store-candidate-validator";
 
 const prisma = new PrismaClient();
 
@@ -6462,6 +6463,7 @@ async function main() {
   const limit = Number(getArg("limit") || 15);
   const categoryName = getArg("category");
   const storeName = getArg("store");
+  const exactStore = hasFlag("exactStore");
   const maxChecked = Number(getArg("maxChecked") || 18);
   const maxLocations = Number(getArg("maxLocations") || 30);
   const allLocationSources = hasFlag("all-location-sources");
@@ -6508,7 +6510,9 @@ async function main() {
   const stores = await prisma.store.findMany({
     where: {
       ...(allLocationSources ? {} : { locationSource: "online" }),
-      ...(storeName ? { name: { contains: storeName, mode: "insensitive" } } : {}),
+      ...(storeName
+        ? { name: exactStore ? { equals: storeName, mode: "insensitive" } : { contains: storeName, mode: "insensitive" } }
+        : {}),
       ...(cosmeticChainsOnly ? { name: { in: COSMETIC_CHAIN_PARENT_NAMES } } : {}),
       ...(factoryOutletChainsOnly ? { name: { in: FACTORY_OUTLET_CHAIN_PARENT_NAMES } } : {}),
       ...(diningChainsOnly ? { name: { in: DINING_CHAIN_PARENT_NAMES } } : {}),
@@ -6619,6 +6623,22 @@ async function main() {
           ownerId: store.ownerId,
           background: store.background,
         };
+        const candidateValidation = validateStoreCandidate({
+          name,
+          url,
+          websiteUrl: branchWebsiteUrl,
+          description: storeData.description,
+          categoryName: store.category.name,
+          sourceType: storeData.sourceType,
+        });
+
+        if (!candidateValidation.ok) {
+          console.log(
+            `[skip-candidate] ${store.category.name} / ${name}: ${candidateValidation.reason || "candidate rejected"}`
+          );
+          continue;
+        }
+
         const existingByUrl = await prisma.store.findUnique({
           where: { url },
         });

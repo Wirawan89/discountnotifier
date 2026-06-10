@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import CategorySidebar from '@/components/discounts/CategorySidebar';
+import DoodleBackground from '@/components/discounts/DoodleBackground';
 import EmptyStoreState from '@/components/discounts/EmptyStoreState';
 import FilterBar from '@/components/discounts/FilterBar';
 import HotDealsTicker from '@/components/discounts/HotDealsTicker';
@@ -13,6 +14,8 @@ import type { Category, Discount, ShareData, Store } from '@/components/discount
 const DEFAULT_COUNTRY = "Australia";
 const BASE_COUNTRIES = [DEFAULT_COUNTRY, "New Zealand", "United States"];
 const DEFAULT_LOCATION_SUBURB = "Sydney";
+const CATEGORY_NEAR_ME_MAX_KM = 12;
+const WALKING_DISTANCE_ESTIMATE_MULTIPLIER = 1.35;
 const DISTANCE_RANGES = [
   { id: "0-2", label: "0 - 2 KM", min: 0, max: 2 },
   { id: "2-6", label: "2 - 6 KM", min: 2, max: 6 },
@@ -29,6 +32,9 @@ type Coordinates = {
 };
 
 type DistanceRangeId = (typeof DISTANCE_RANGES)[number]["id"] | typeof UNRANKED_DISTANCE_RANGE.id | "";
+type LocationRequestOptions = {
+  requireSuburb?: boolean;
+};
 
 const LOCATION_COORDINATES: Record<string, Coordinates> = {
   acton: { lat: -35.2777, lng: 149.1189 },
@@ -37,6 +43,7 @@ const LOCATION_COORDINATES: Record<string, Coordinates> = {
   artarmon: { lat: -33.8088, lng: 151.1852 },
   ashfield: { lat: -33.8883, lng: 151.1227 },
   bankstown: { lat: -33.9173, lng: 151.0359 },
+  beaconsfield: { lat: -33.9129, lng: 151.2004 },
   belconnen: { lat: -35.2384, lng: 149.0652 },
   "bondi beach": { lat: -33.8915, lng: 151.2767 },
   braddon: { lat: -35.2706, lng: 149.1351 },
@@ -72,6 +79,7 @@ const LOCATION_COORDINATES: Record<string, Coordinates> = {
   hurstville: { lat: -33.9678, lng: 151.1055 },
   liverpool: { lat: -33.9209, lng: 150.9238 },
   marrickville: { lat: -33.9106, lng: 151.1559 },
+  mascot: { lat: -33.925, lng: 151.193 },
   melbourne: { lat: -37.8136, lng: 144.9631 },
   newtown: { lat: -33.8974, lng: 151.178 },
   "north sydney": { lat: -33.839, lng: 151.207 },
@@ -86,12 +94,14 @@ const LOCATION_COORDINATES: Record<string, Coordinates> = {
   surry: { lat: -33.8845, lng: 151.2125 },
   "surry hills": { lat: -33.8845, lng: 151.2125 },
   sydney: { lat: -33.8688, lng: 151.2093 },
+  waterloo: { lat: -33.8999, lng: 151.207 },
   ultimo: { lat: -33.8816, lng: 151.1984 },
   unley: { lat: -34.95, lng: 138.607 },
   "west end": { lat: -27.4813, lng: 153.0097 },
   "west leederville": { lat: -31.9413, lng: 115.8315 },
   "west perth": { lat: -31.9488, lng: 115.8414 },
   woolloongabba: { lat: -27.4869, lng: 153.036 },
+  zetland: { lat: -33.9075, lng: 151.2086 },
 };
 
 function normalizeCountry(country?: string | null) {
@@ -175,6 +185,10 @@ function distanceKm(from: Coordinates, to: Coordinates) {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
+function estimateWalkingDistanceKm(straightLineDistanceKm: number) {
+  return straightLineDistanceKm * WALKING_DISTANCE_ESTIMATE_MULTIPLIER;
+}
+
 function getStoreDestination(store: Store) {
   return [store.address, store.name, store.suburb, store.city, store.country || DEFAULT_COUNTRY]
     .filter((part): part is string => Boolean(part && part.trim().length > 0))
@@ -199,6 +213,8 @@ function getWalkingMapUrl(origin: string, storesToMap: Store[]) {
 }
 
 export default function Home() {
+  const initialQuickJumpAppliedRef = useRef(false);
+  const userCoordinatesRef = useRef<Coordinates | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -213,6 +229,7 @@ export default function Home() {
   const [sortBy, setSortBy] = useState("name");
   const [userLocation, setUserLocation] = useState("");
   const [userCoordinates, setUserCoordinates] = useState<Coordinates | null>(null);
+  const [locationCoordinateCache, setLocationCoordinateCache] = useState<Record<string, Coordinates>>({});
   const [selectedDistanceRange, setSelectedDistanceRange] = useState<DistanceRangeId>("");
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [showNearMe, setShowNearMe] = useState(false);
@@ -221,6 +238,10 @@ export default function Home() {
   const [shareData, setShareData] = useState<ShareData | null>(null);
   const [smartFetchLoading, setSmartFetchLoading] = useState(false);
   const [smartFetchResult, setSmartFetchResult] = useState<string | null>(null);
+  const [storeDiscoveryLoading, setStoreDiscoveryLoading] = useState(false);
+  const [storeDiscoveryMessage, setStoreDiscoveryMessage] = useState("");
+  const [storeDiscoveryLink, setStoreDiscoveryLink] = useState<{ href: string; categoryName: string } | null>(null);
+  const [userStoreDiscoveryEnabled, setUserStoreDiscoveryEnabled] = useState(true);
   const [isSaleNearbyMode, setIsSaleNearbyMode] = useState(false);
   const [saleNearbyLoading, setSaleNearbyLoading] = useState(false);
   const [saleNearbyLocation, setSaleNearbyLocation] = useState("");
@@ -231,6 +252,11 @@ export default function Home() {
   const [offersNearbyLocation, setOffersNearbyLocation] = useState("");
   const [offersNearbySuburbs, setOffersNearbySuburbs] = useState<string[]>([]);
   const [offersNearbyResult, setOffersNearbyResult] = useState<string | null>(null);
+
+  const updateUserCoordinates = (coordinates: Coordinates | null) => {
+    userCoordinatesRef.current = coordinates;
+    setUserCoordinates(coordinates);
+  };
 
   useEffect(() => {
     fetch('/api/categories')
@@ -244,11 +270,52 @@ export default function Home() {
     if (savedFavorites) {
       setFavorites(JSON.parse(savedFavorites));
     }
+
+    fetch("/api/features")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (data && typeof data.userStoreDiscoveryEnabled === "boolean") {
+          setUserStoreDiscoveryEnabled(data.userStoreDiscoveryEnabled);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     localStorage.setItem('discountNotifierFavorites', JSON.stringify(favorites));
   }, [favorites]);
+
+  useEffect(() => {
+    if (initialQuickJumpAppliedRef.current) {
+      return;
+    }
+
+    if (categories.length === 0) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const categoryId = Number(params.get("categoryId"));
+    const quickSearch = params.get("quickSearch") || "";
+    const category = categories.find((item) => item.id === categoryId);
+
+    if (category) {
+      setSelectedCategory(category);
+      setSearchTerm(quickSearch);
+      setSelectedSuburb("");
+      setShowNearMe(false);
+      setShowFavoritesOnly(false);
+      setShowAllStores(false);
+      setSelectedDistanceRange("");
+      setStoreDiscoveryMessage("");
+      setStoreDiscoveryLink(null);
+      refreshCategoryData(category);
+    } else if (quickSearch) {
+      setSearchTerm(quickSearch);
+    }
+
+    initialQuickJumpAppliedRef.current = true;
+  }, [categories]);
 
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.name.localeCompare(b.name)),
@@ -303,19 +370,89 @@ export default function Home() {
     [stores]
   );
 
+  const getCoordinatesForLocationInput = (location: string) => {
+    const normalizedLocation = normalizeLocation(location);
+    const staticCoordinates = getLocationCoordinates(location);
+
+    if (staticCoordinates) {
+      return staticCoordinates;
+    }
+
+    const cachedCoordinates = locationCoordinateCache[`${selectedCountry}:${normalizedLocation}`];
+
+    if (cachedCoordinates) {
+      return cachedCoordinates;
+    }
+
+    const matchingStores = stores.filter(
+      (store) =>
+        normalizeCountry(store.country) === selectedCountry &&
+        (normalizeLocation(store.suburb) === normalizedLocation || normalizeLocation(store.city) === normalizedLocation) &&
+        typeof store.latitude === "number" &&
+        typeof store.longitude === "number"
+    );
+
+    if (matchingStores.length === 0) {
+      return undefined;
+    }
+
+    return {
+      lat: matchingStores.reduce((sum, store) => sum + Number(store.latitude), 0) / matchingStores.length,
+      lng: matchingStores.reduce((sum, store) => sum + Number(store.longitude), 0) / matchingStores.length,
+    };
+  };
+
+  const resolveLocationCoordinates = async (location: string) => {
+    const localCoordinates = getCoordinatesForLocationInput(location);
+
+    if (localCoordinates) {
+      return localCoordinates;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/locations/coordinates?location=${encodeURIComponent(location)}&country=${encodeURIComponent(selectedCountry)}`
+      );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+
+      if (typeof data.lat !== "number" || typeof data.lng !== "number") {
+        return null;
+      }
+
+      const coordinates = {
+        lat: data.lat,
+        lng: data.lng,
+      };
+      const cacheKey = `${selectedCountry}:${normalizeLocation(location)}`;
+      setLocationCoordinateCache((previousCache) => ({
+        ...previousCache,
+        [cacheKey]: coordinates,
+      }));
+
+      return coordinates;
+    } catch (_error) {
+      return null;
+    }
+  };
+
   const nearbyOriginCoordinates = useMemo(
-    () => userCoordinates || getLocationCoordinates(userLocation),
-    [userCoordinates, userLocation]
+    () => userCoordinates || getCoordinatesForLocationInput(userLocation),
+    [locationCoordinateCache, selectedCountry, stores, userCoordinates, userLocation]
   );
 
   const getStoreDistanceKm = (store: Store) => {
-      const storeCoordinates = getStoreCoordinates(store);
+    const storeCoordinates = getStoreCoordinates(store);
 
     if (!nearbyOriginCoordinates || !storeCoordinates) {
       return null;
     }
 
-    return distanceKm(nearbyOriginCoordinates, storeCoordinates);
+    return estimateWalkingDistanceKm(distanceKm(nearbyOriginCoordinates, storeCoordinates));
   };
 
   const filteredStores = useMemo(() => {
@@ -366,13 +503,23 @@ export default function Home() {
       });
     }
 
-    if (showNearMe && userLocation) {
-      const normalizedLocation = normalizeLocation(userLocation);
-      filtered = filtered.filter(
-        (store) =>
-          normalizeLocation(store.suburb) === normalizedLocation ||
-          normalizeLocation(store.city) === normalizedLocation
-      );
+    if (showNearMe) {
+      if (nearbyOriginCoordinates) {
+        filtered = filtered.filter((store) => {
+          const storeDistance = getStoreDistanceKm(store);
+
+          return storeDistance !== null && storeDistance <= CATEGORY_NEAR_ME_MAX_KM;
+        });
+      } else if (userLocation) {
+        const normalizedLocation = normalizeLocation(userLocation);
+        filtered = filtered.filter(
+          (store) =>
+            normalizeLocation(store.suburb) === normalizedLocation ||
+            normalizeLocation(store.city) === normalizedLocation
+        );
+      } else {
+        filtered = [];
+      }
     }
 
     if (showFavoritesOnly) {
@@ -400,6 +547,10 @@ export default function Home() {
     }
 
     filtered.sort((a, b) => {
+      if (showNearMe && nearbyOriginCoordinates) {
+        return (getStoreDistanceKm(a) ?? Number.POSITIVE_INFINITY) - (getStoreDistanceKm(b) ?? Number.POSITIVE_INFINITY);
+      }
+
       switch (sortBy) {
         case "name":
           return a.name.localeCompare(b.name);
@@ -495,6 +646,8 @@ export default function Home() {
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
+    setStoreDiscoveryMessage("");
+    setStoreDiscoveryLink(null);
 
     if (value.trim()) {
       setSelectedSuburb("");
@@ -503,6 +656,104 @@ export default function Home() {
       setShowAllStores(false);
       setSelectedDistanceRange("");
     }
+  };
+
+  const handleRequestStoreDiscovery = async () => {
+    const storeName = searchTerm.trim();
+    const categoryName = selectedCategory?.name;
+
+    if (!storeName || !categoryName) {
+      return;
+    }
+
+    setStoreDiscoveryLoading(true);
+    setStoreDiscoveryMessage("");
+    setStoreDiscoveryLink(null);
+
+    if (!userStoreDiscoveryEnabled) {
+      setStoreDiscoveryMessage("Automatic store discovery is currently disabled.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/stores/discovery-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          categoryName,
+          storeName,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setStoreDiscoveryMessage(data.error || "Could not start store search.");
+        return;
+      }
+
+      if (data.foundExisting && data.href && data.categoryName) {
+        setStoreDiscoveryMessage(
+          `${data.storeName || storeName} is already listed in ${data.categoryName}.`
+        );
+        setStoreDiscoveryLink({
+          href: data.href,
+          categoryName: data.categoryName,
+        });
+        return;
+      }
+
+      setSmartFetchResult(
+        data.message ||
+          `Your request will be processed in background, approximately 1-2 minutes. Please re-enter "${storeName}" in Search after that.`
+      );
+      setSearchTerm("");
+      setSelectedSuburb("");
+      setShowNearMe(false);
+      setShowFavoritesOnly(false);
+      setShowAllStores(false);
+      setSelectedDistanceRange("");
+      setStoreDiscoveryMessage("");
+      setStoreDiscoveryLink(null);
+    } catch (error) {
+      setStoreDiscoveryMessage("Could not start store search. Please try again.");
+    } finally {
+      setStoreDiscoveryLoading(false);
+    }
+  };
+
+  const handleCancelStoreDiscovery = () => {
+    setSearchTerm("");
+    setSelectedSuburb("");
+    setShowNearMe(false);
+    setShowFavoritesOnly(false);
+    setShowAllStores(false);
+    setSelectedDistanceRange("");
+    setStoreDiscoveryMessage("");
+    setStoreDiscoveryLink(null);
+  };
+
+  const handleSearchOtherCategories = () => {
+    const query = searchTerm.trim();
+
+    setSelectedCategory(null);
+    setSearchTerm("");
+    setSelectedSuburb("");
+    setShowNearMe(false);
+    setShowFavoritesOnly(false);
+    setShowAllStores(false);
+    setSelectedDistanceRange("");
+    setStoreDiscoveryMessage("");
+    setStoreDiscoveryLink(null);
+
+    window.dispatchEvent(
+      new CustomEvent("discountnotifier:open-quick-search", {
+        detail: {
+          query,
+        },
+      })
+    );
   };
 
   const refreshCategoryData = (category: Category) => {
@@ -535,6 +786,10 @@ export default function Home() {
   };
 
   const handleCategoryClick = (category: Category) => {
+    if (window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
     setSelectedCategory(category);
     resetCategoryViewState();
     fetch('/api/analytics/access', {
@@ -557,20 +812,28 @@ export default function Home() {
     setShowNearMe(true);
     setShowAllStores(false);
     setSelectedDistanceRange("");
+    setSmartFetchResult(
+      location === "Current location"
+        ? `Showing stores within ${CATEGORY_NEAR_ME_MAX_KM} km estimated walking distance of your current location.`
+        : `Showing stores within ${CATEGORY_NEAR_ME_MAX_KM} km estimated walking distance of your entered suburb.`
+    );
   };
 
-  const getUserLocation = (): Promise<string | null> => {
+  const getUserLocation = async (options: LocationRequestOptions = {}): Promise<string | null> => {
     setIsLoadingLocation(true);
+    const { requireSuburb = false } = options;
 
-    const askForSuburb = () => {
+    const askForSuburb = async () => {
       const suburb = window.prompt(
-        "Enter your suburb so nearby search can match stores in your exact area and 1-2 nearby suburbs.",
+        requireSuburb
+          ? "Enter your suburb so nearby search can match stores in your exact area and 1-2 nearby suburbs."
+          : "Browser location is unavailable. Enter your suburb to show nearby stores.",
         userLocation || DEFAULT_LOCATION_SUBURB
       )?.trim();
 
       if (suburb) {
         setUserLocation(suburb);
-        setUserCoordinates((currentCoordinates) => currentCoordinates || getLocationCoordinates(suburb) || null);
+        updateUserCoordinates(await resolveLocationCoordinates(suburb));
         return suburb;
       }
 
@@ -578,25 +841,32 @@ export default function Home() {
     };
 
     if (!navigator.geolocation) {
-      const suburb = askForSuburb();
+      const suburb = await askForSuburb();
       setIsLoadingLocation(false);
-      return Promise.resolve(suburb);
+      return suburb;
     }
 
     return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserCoordinates({
+        async (position) => {
+          updateUserCoordinates({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
-          const suburb = askForSuburb();
+          if (!requireSuburb) {
+            setUserLocation("Current location");
+            setIsLoadingLocation(false);
+            resolve("Current location");
+            return;
+          }
+
+          const suburb = await askForSuburb();
           setIsLoadingLocation(false);
           resolve(suburb);
         },
-        (error) => {
+        async (error) => {
           console.log("Location access denied:", error);
-          const suburb = askForSuburb();
+          const suburb = await askForSuburb();
           setIsLoadingLocation(false);
           resolve(suburb);
         }
@@ -640,9 +910,18 @@ export default function Home() {
     setSelectedDistanceRange("");
 
     try {
-      const response = await fetch(
-        `/api/stores/sale-nearby?location=${encodeURIComponent(location)}&country=${encodeURIComponent(selectedCountry)}`
-      );
+      const params = new URLSearchParams({
+        location,
+        country: selectedCountry,
+      });
+      const coordinates = userCoordinatesRef.current || userCoordinates;
+
+      if (coordinates) {
+        params.set("lat", String(coordinates.lat));
+        params.set("lng", String(coordinates.lng));
+      }
+
+      const response = await fetch(`/api/stores/sale-nearby?${params.toString()}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -706,9 +985,18 @@ export default function Home() {
     setSelectedDistanceRange("");
 
     try {
-      const response = await fetch(
-        `/api/stores/offers-nearby?location=${encodeURIComponent(location)}&country=${encodeURIComponent(selectedCountry)}`
-      );
+      const params = new URLSearchParams({
+        location,
+        country: selectedCountry,
+      });
+      const coordinates = userCoordinatesRef.current || userCoordinates;
+
+      if (coordinates) {
+        params.set("lat", String(coordinates.lat));
+        params.set("lng", String(coordinates.lng));
+      }
+
+      const response = await fetch(`/api/stores/offers-nearby?${params.toString()}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -825,10 +1113,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <HotDealsTicker />
+    <div className="relative min-h-screen overflow-hidden bg-gray-50">
+      <DoodleBackground />
+      <div className="relative z-10">
+        <HotDealsTicker />
 
-      <div className="flex min-h-[calc(100vh-120px)] flex-col lg:h-[calc(100vh-120px)] lg:flex-row">
+        <div className="flex min-h-[calc(100vh-120px)] flex-col lg:h-[calc(100vh-120px)] lg:flex-row">
         <CategorySidebar
           categories={sortedCategories}
           loading={loadingCategories}
@@ -842,7 +1132,7 @@ export default function Home() {
           onOffersNearby={handleOffersNearby}
         />
 
-        <main className="w-full flex-1 overflow-y-auto p-4 sm:p-5 lg:w-2/3 lg:p-6">
+        <main className="w-full flex-1 overflow-y-auto p-4 pb-28 sm:p-5 sm:pb-5 lg:w-2/3 lg:p-6">
           {selectedCategory || isSaleNearbyMode || isOffersNearbyMode ? (
             <div>
               <h2 className="mb-4 text-xl font-bold text-gray-800 sm:text-2xl">
@@ -898,7 +1188,7 @@ export default function Home() {
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Distance grouping</p>
                       <p className="text-xs text-gray-500">
-                        Approximate walking range from {userLocation || "your location"}. Generic city-only stores are not grouped until exact coordinates are added.
+                        Estimated walking range from {userLocation || "your location"}. Generic city-only stores are not grouped until exact coordinates are added.
                         {nearbyStoresWithKnownDistance < stores.length &&
                           ` ${stores.length - nearbyStoresWithKnownDistance} store(s) need exact location data.`}
                       </p>
@@ -1015,12 +1305,20 @@ export default function Home() {
               {!loadingStores && filteredStores.length === 0 && (
                 <EmptyStoreState
                   searchTerm={searchTerm}
+                  categoryName={selectedCategory?.name}
                   selectedSuburb={selectedSuburb}
                   showFavoritesOnly={showFavoritesOnly}
                   showNearMe={showNearMe}
                   isSaleNearbyMode={isSaleNearbyMode}
                   isOffersNearbyMode={isOffersNearbyMode}
                   userLocation={userLocation}
+                  discoveryLoading={storeDiscoveryLoading}
+                  discoveryMessage={storeDiscoveryMessage}
+                  discoveryLink={storeDiscoveryLink}
+                  userStoreDiscoveryEnabled={userStoreDiscoveryEnabled}
+                  onRequestStoreDiscovery={handleRequestStoreDiscovery}
+                  onCancelStoreDiscovery={handleCancelStoreDiscovery}
+                  onSearchOtherCategories={handleSearchOtherCategories}
                   onClearFilters={clearFilters}
                 />
               )}
@@ -1029,9 +1327,10 @@ export default function Home() {
             <WelcomeShowcase />
           )}
         </main>
-      </div>
+        </div>
 
-      <ShareModal shareData={shareData} onClose={() => setShareData(null)} />
+        <ShareModal shareData={shareData} onClose={() => setShareData(null)} />
+      </div>
     </div>
   );
 }

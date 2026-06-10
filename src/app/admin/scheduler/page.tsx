@@ -56,6 +56,10 @@ const regionalSeedCategories = [
     name: "Food & Groceries",
     regions: ["NSW"],
   },
+  {
+    name: "Factory Outlets",
+    regions: ["AU"],
+  },
 ];
 
 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

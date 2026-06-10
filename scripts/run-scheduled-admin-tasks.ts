@@ -104,7 +104,7 @@ function runReverifyForCategories(categoryNames: string[], createMissing: boolea
 
 function runRegionalSeedForCategories(categoryNames: string[]) {
   const supportedCategories = categoryNames.filter((categoryName) =>
-    ["Dining & Beverages", "Food & Groceries"].includes(categoryName)
+    ["Dining & Beverages", "Food & Groceries", "Factory Outlets"].includes(categoryName)
   );
 
   const targets = supportedCategories.length > 0 ? supportedCategories : ["Dining & Beverages"];

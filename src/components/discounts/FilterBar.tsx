@@ -56,14 +56,14 @@ export default function FilterBar({
             placeholder="Search stores or suburb..."
             value={searchTerm}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-black transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base text-black transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
           />
         </div>
 
         <select
           value={selectedCountry}
           onChange={(event) => onCountryChange(event.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-black transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 xl:w-auto"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base text-black transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm xl:w-auto"
           aria-label="Country"
         >
           {countryOptions.map((country) => (
@@ -77,7 +77,7 @@ export default function FilterBar({
           <select
             value={selectedSuburb}
             onChange={(event) => onSuburbChange(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-black transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 xl:w-auto"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base text-black transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm xl:w-auto"
           >
             <option value="">All Suburbs</option>
             {suburbOptions.map((suburb) => (
@@ -91,7 +91,7 @@ export default function FilterBar({
         <select
           value={sortBy}
           onChange={(event) => onSortChange(event.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-black transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 xl:w-auto"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base text-black transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm xl:w-auto"
         >
           <option value="name">Sort by Name</option>
           <option value="suburb">Sort by Suburb</option>
@@ -102,7 +102,7 @@ export default function FilterBar({
         <button
           type="button"
           onClick={onToggleFavoritesOnly}
-          className={`flex h-10 w-full items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all duration-200 xl:w-auto ${
+          className={`flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all duration-200 xl:w-auto ${
             showFavoritesOnly
               ? "bg-red-600 text-white hover:bg-red-700"
               : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -116,7 +116,7 @@ export default function FilterBar({
           type="button"
           onClick={onGetUserLocation}
           disabled={isLoadingLocation}
-          className={`w-full rounded-lg px-4 py-2 font-medium transition-all duration-200 xl:w-auto ${
+          className={`min-h-11 w-full rounded-lg px-4 py-2 font-medium transition-all duration-200 xl:w-auto ${
             showNearMe
               ? "bg-green-600 text-white hover:bg-green-700"
               : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -136,7 +136,7 @@ export default function FilterBar({
           <button
             type="button"
             onClick={onToggleNearMe}
-            className={`w-full rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 xl:w-auto ${
+            className={`min-h-11 w-full rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 xl:w-auto ${
               showNearMe
                 ? "bg-blue-600 text-white hover:bg-blue-700"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -148,23 +148,49 @@ export default function FilterBar({
 
         {showFetchActions && (
           <div className="flex flex-col gap-3 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center xl:mb-4">
-            <button
-              type="button"
-              onClick={onSmartFetch}
-              disabled={smartFetchLoading}
-              className={`w-full rounded-lg bg-gradient-to-r from-green-600 to-green-400 px-4 py-2 font-medium text-white shadow transition-all duration-200 hover:from-green-700 hover:to-green-500 sm:w-auto ${smartFetchLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              {smartFetchLoading ? "Smart Fetching..." : "Smart Fetch Discounts"}
-            </button>
+            <div className="group relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={onSmartFetch}
+                disabled={smartFetchLoading}
+                aria-describedby="smart-fetch-help"
+                className={`min-h-11 w-full rounded-lg bg-gradient-to-r from-green-600 to-green-400 px-4 py-2 font-medium text-white shadow transition-all duration-200 hover:from-green-700 hover:to-green-500 sm:w-auto ${smartFetchLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                {smartFetchLoading ? "Smart Fetching..." : "Smart Fetch Discounts"}
+              </button>
+              <span
+                id="smart-fetch-help"
+                role="tooltip"
+                className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-3 flex w-60 -translate-x-1/2 items-start gap-2 rounded-[22px] rounded-bl-md border border-emerald-200 bg-emerald-100 px-3 py-2 text-left text-[11px] font-medium leading-snug text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 before:absolute before:-bottom-1.5 before:left-7 before:h-4 before:w-4 before:rotate-45 before:border-b before:border-r before:border-emerald-200 before:bg-emerald-100 group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-300 text-[11px] leading-none text-emerald-950">
+                  💬
+                </span>
+                <span>Checking the latest sale, deal and offer information.</span>
+              </span>
+            </div>
 
-            <button
-              type="button"
-              onClick={onShowExisting}
-              disabled={smartFetchLoading}
-              className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-400 px-4 py-2 font-medium text-white shadow transition-all duration-200 hover:from-blue-700 hover:to-blue-500 sm:w-auto"
-            >
-              Show Existing
-            </button>
+            <div className="group relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={onShowExisting}
+                disabled={smartFetchLoading}
+                aria-describedby="show-existing-help"
+                className="min-h-11 w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-400 px-4 py-2 font-medium text-white shadow transition-all duration-200 hover:from-blue-700 hover:to-blue-500 sm:w-auto"
+              >
+                Show Existing
+              </button>
+              <span
+                id="show-existing-help"
+                role="tooltip"
+                className="pointer-events-none absolute bottom-full right-0 z-30 mb-3 flex w-60 items-start gap-2 rounded-[22px] rounded-br-md border border-emerald-200 bg-emerald-100 px-3 py-2 text-left text-[11px] font-medium leading-snug text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 before:absolute before:-bottom-1.5 before:right-7 before:h-4 before:w-4 before:rotate-45 before:border-b before:border-r before:border-emerald-200 before:bg-emerald-100 group-hover:opacity-100 group-focus-within:opacity-100 sm:-right-4"
+              >
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-300 text-[11px] leading-none text-emerald-950">
+                  💬
+                </span>
+                <span>Showing the current saved offers from the database.</span>
+              </span>
+            </div>
 
             {smartFetchResult && (
               <span className={`rounded px-3 py-1 text-sm font-medium shadow animate-fadeIn ${

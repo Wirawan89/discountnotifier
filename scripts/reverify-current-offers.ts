@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { updateCatalogUrlHealth } from "../src/lib/catalog-health";
 import { getLiveVerifiedOfferEndDate } from "../src/lib/offer-lifecycle";
 import { OfferVerifier } from "../src/lib/offer-verifier";
+import { verifierOptionsForStoreCandidate } from "../src/lib/store-candidate-validator";
 
 const prisma = new PrismaClient();
 const categoryName = process.argv.find((arg) => arg.startsWith("--category="))?.split("=")[1];
@@ -172,6 +173,7 @@ async function main() {
       const result = await OfferVerifier.verifyStoreOfferPages(verificationUrl, store.catalogs, {
         country: store.country,
         profile: getVerifierProfile(store.category.name),
+        ...verifierOptionsForStoreCandidate(store.name),
       });
       const { removedCatalogUrls } = await updateCatalogUrlHealth(prisma, store.id, store.catalogs, result);
 
@@ -226,6 +228,7 @@ async function main() {
       ], {
         country: store.country,
         profile: getVerifierProfile(store.category.name),
+        ...verifierOptionsForStoreCandidate(store.name),
       });
       const { removedCatalogUrls } = await updateCatalogUrlHealth(prisma, store.id, store.catalogs, result);
 

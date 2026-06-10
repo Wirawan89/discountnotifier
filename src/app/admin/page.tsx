@@ -14,12 +14,24 @@ type DashboardStats = {
   todayFetchOperations: number;
 };
 
+type FeatureFlag = {
+  id: number;
+  key: string;
+  label: string;
+  description?: string | null;
+  isEnabled: boolean;
+};
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingFlagKey, setSavingFlagKey] = useState<string | null>(null);
+  const [featureMessage, setFeatureMessage] = useState("");
 
   useEffect(() => {
     fetchDashboardStats();
+    fetchFeatureFlags();
   }, []);
 
   const fetchDashboardStats = async () => {
@@ -33,6 +45,49 @@ export default function AdminDashboard() {
       console.error('Error fetching dashboard stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFeatureFlags = async () => {
+    try {
+      const response = await fetch("/api/admin/feature-flags");
+
+      if (response.ok) {
+        const data = await response.json();
+        setFeatureFlags(Array.isArray(data.flags) ? data.flags : []);
+      }
+    } catch (error) {
+      console.error("Error fetching feature flags:", error);
+    }
+  };
+
+  const updateFeatureFlag = async (key: string, isEnabled: boolean) => {
+    setSavingFlagKey(key);
+    setFeatureMessage("");
+
+    try {
+      const response = await fetch("/api/admin/feature-flags", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ key, isEnabled }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setFeatureMessage(data.error || "Failed to update feature flag.");
+        return;
+      }
+
+      setFeatureFlags((currentFlags) =>
+        currentFlags.map((flag) => (flag.key === key ? data.flag : flag))
+      );
+      setFeatureMessage(`${data.flag.label} is now ${data.flag.isEnabled ? "Enabled" : "Disabled"}.`);
+    } catch (error) {
+      setFeatureMessage("Network error updating feature flag.");
+    } finally {
+      setSavingFlagKey(null);
     }
   };
 
@@ -136,6 +191,47 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Feature Controls */}
+      {featureFlags.length > 0 && (
+        <div className="overflow-hidden rounded-lg bg-white shadow">
+          <div className="border-b border-gray-200 px-4 py-5 sm:px-6">
+            <h2 className="text-lg font-medium text-gray-900">Feature Controls</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Enable or disable user-facing automation features without changing code.
+            </p>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {featureFlags.map((flag) => (
+              <div key={flag.key} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{flag.label}</p>
+                  {flag.description && (
+                    <p className="mt-1 max-w-2xl text-sm text-gray-500">{flag.description}</p>
+                  )}
+                </div>
+                <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
+                  <span>Status</span>
+                  <select
+                    value={flag.isEnabled ? "enabled" : "disabled"}
+                    onChange={(event) => updateFeatureFlag(flag.key, event.target.value === "enabled")}
+                    disabled={savingFlagKey === flag.key}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
+                  >
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </label>
+              </div>
+            ))}
+          </div>
+          {featureMessage && (
+            <div className="border-t border-gray-100 px-4 py-3 text-sm text-gray-600 sm:px-6">
+              {featureMessage}
+            </div>
+          )}
         </div>
       )}
 
@@ -304,4 +400,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-

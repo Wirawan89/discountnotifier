@@ -2,29 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_COUNTRY = "Australia";
-const MAX_NEARBY_SUBURBS = 2;
 const DINING_CATEGORY_NAMES = ["Caffe & Brunch", "Dining & Beverages", "Cultural Bites & Takeaway"];
+const MAX_NEARBY_WALKING_KM = 12;
+const WALKING_DISTANCE_ESTIMATE_MULTIPLIER = 1.35;
 
-const NEARBY_SUBURBS: Record<string, string[]> = {
-  sydney: ["Haymarket", "Surry Hills"],
-  haymarket: ["Sydney", "Surry Hills"],
-  "surry hills": ["Sydney", "Haymarket"],
-  cabramatta: ["Canley Vale", "Fairfield"],
-  "canley vale": ["Cabramatta", "Fairfield"],
-  fairfield: ["Cabramatta", "Canley Vale"],
-  liverpool: ["Cabramatta", "Fairfield"],
-  bankstown: ["Cabramatta", "Burwood"],
-  chatswood: ["Artarmon", "North Sydney"],
-  burwood: ["Strathfield", "Ashfield"],
-  mascot: ["Sydney", "Rosebery"],
-  rosebery: ["Mascot", "Sydney"],
-  leichhardt: ["Sydney", "Haymarket"],
-  artarmon: ["Sydney", "Chatswood"],
-  marrickville: ["Sydney", "Surry Hills"],
-  melbourne: ["Southbank", "Richmond"],
-  brisbane: ["Fortitude Valley", "South Brisbane"],
-  perth: ["Northbridge", "Subiaco"],
-  adelaide: ["Norwood", "Unley"],
+type Coordinates = {
+  lat: number;
+  lng: number;
 };
 
 function normalizeCountry(country: string | null) {
@@ -53,23 +37,32 @@ function buildCountryWhere(country: string) {
   return { country };
 }
 
-function normalizeSuburb(suburb: string) {
-  return suburb.trim().toLowerCase();
+function distanceKm(from: Coordinates, to: Coordinates) {
+  const earthRadiusKm = 6371;
+  const latDistance = ((to.lat - from.lat) * Math.PI) / 180;
+  const lngDistance = ((to.lng - from.lng) * Math.PI) / 180;
+  const fromLat = (from.lat * Math.PI) / 180;
+  const toLat = (to.lat * Math.PI) / 180;
+  const haversine =
+    Math.sin(latDistance / 2) * Math.sin(latDistance / 2) +
+    Math.cos(fromLat) * Math.cos(toLat) * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
-function pickNearbySuburbs(location: string, availableSuburbs: string[]) {
-  const exactSuburb =
-    availableSuburbs.find((suburb) => normalizeSuburb(suburb) === normalizeSuburb(location)) ||
-    location.trim();
-  const preferredNearby = NEARBY_SUBURBS[normalizeSuburb(location)] || [];
-  const nearby = preferredNearby
-    .map((suburb) =>
-      availableSuburbs.find((availableSuburb) => normalizeSuburb(availableSuburb) === normalizeSuburb(suburb))
-    )
-    .filter((suburb): suburb is string => Boolean(suburb))
-    .filter((suburb) => normalizeSuburb(suburb) !== normalizeSuburb(exactSuburb));
+function estimateWalkingDistanceKm(straightLineDistanceKm: number) {
+  return straightLineDistanceKm * WALKING_DISTANCE_ESTIMATE_MULTIPLIER;
+}
 
-  return [exactSuburb, ...nearby].slice(0, MAX_NEARBY_SUBURBS + 1);
+function parseCoordinates(searchParams: URLSearchParams) {
+  const lat = Number(searchParams.get("lat"));
+  const lng = Number(searchParams.get("lng"));
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null;
+  }
+
+  return { lat, lng };
 }
 
 function currentMonthlyWeek(date: Date) {
@@ -86,14 +79,84 @@ function isScheduledForDate(scheduleType: string, weeklyDays: number[], monthlyW
   return true;
 }
 
+async function resolveLocationCoordinates(location: string, country: string) {
+  const countryWhere = buildCountryWhere(country);
+  const baseWhere = {
+    ...countryWhere,
+    latitude: { not: null },
+    longitude: { not: null },
+    NOT: {
+      locationSource: "closed",
+    },
+  };
+
+  const averageCoordinates = (rows: Array<{ latitude: number | null; longitude: number | null }>) => {
+    const coordinates = rows.filter(
+      (row): row is { latitude: number; longitude: number } =>
+        typeof row.latitude === "number" && typeof row.longitude === "number"
+    );
+
+    if (coordinates.length === 0) {
+      return null;
+    }
+
+    return {
+      lat: coordinates.reduce((sum, row) => sum + row.latitude, 0) / coordinates.length,
+      lng: coordinates.reduce((sum, row) => sum + row.longitude, 0) / coordinates.length,
+    };
+  };
+
+  const suburbMatches = await prisma.store.findMany({
+    where: {
+      ...baseWhere,
+      suburb: {
+        equals: location,
+        mode: "insensitive",
+      },
+    },
+    select: {
+      latitude: true,
+      longitude: true,
+    },
+    take: 100,
+  });
+  const suburbCoordinates = averageCoordinates(suburbMatches);
+
+  if (suburbCoordinates) {
+    return suburbCoordinates;
+  }
+
+  const cityMatches = await prisma.store.findMany({
+    where: {
+      ...baseWhere,
+      city: {
+        equals: location,
+        mode: "insensitive",
+      },
+    },
+    select: {
+      latitude: true,
+      longitude: true,
+    },
+    take: 100,
+  });
+
+  return averageCoordinates(cityMatches);
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const location = searchParams.get("location")?.trim();
     const country = normalizeCountry(searchParams.get("country"));
+    const originCoordinates = parseCoordinates(searchParams) || (location ? await resolveLocationCoordinates(location, country) : null);
 
-    if (!location) {
-      return NextResponse.json({ error: "Location is required" }, { status: 400 });
+    if (!location && !originCoordinates) {
+      return NextResponse.json({ error: "Location or coordinates are required" }, { status: 400 });
+    }
+
+    if (!originCoordinates) {
+      return NextResponse.json({ error: "Could not resolve location coordinates" }, { status: 404 });
     }
 
     const now = new Date();
@@ -106,25 +169,6 @@ export async function GET(request: Request) {
       },
     };
 
-    const availableStores = await prisma.store.findMany({
-      where: {
-        ...countryWhere,
-        ...categoryWhere,
-        NOT: {
-          locationSource: "closed",
-        },
-      },
-      select: {
-        suburb: true,
-      },
-      distinct: ["suburb"],
-    });
-    const availableSuburbs = availableStores
-      .map((store) => store.suburb)
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b));
-    const suburbs = pickNearbySuburbs(location, availableSuburbs);
-
     const stores = await prisma.store.findMany({
       where: {
         ...countryWhere,
@@ -132,9 +176,8 @@ export async function GET(request: Request) {
         NOT: {
           locationSource: "closed",
         },
-        suburb: {
-          in: suburbs,
-        },
+        latitude: { not: null },
+        longitude: { not: null },
         OR: [
           {
             discounts: {
@@ -191,23 +234,36 @@ export async function GET(request: Request) {
     const scheduledStores = stores
       .map((store) => ({
         ...store,
+        distanceKm: estimateWalkingDistanceKm(
+          distanceKm(originCoordinates, {
+            lat: Number(store.latitude),
+            lng: Number(store.longitude),
+          })
+        ),
         promotions: store.promotions.filter((promotion) =>
           isScheduledForDate(promotion.scheduleType, promotion.weeklyDays, promotion.monthlyWeeks, now)
         ),
       }))
-      .filter((store) => store.discounts.length > 0 || store.promotions.length > 0);
+      .filter(
+        (store) =>
+          (store.discounts.length > 0 || store.promotions.length > 0) &&
+          store.distanceKm <= MAX_NEARBY_WALKING_KM
+      )
+      .sort((a, b) => a.distanceKm - b.distanceKm);
     const totalDiscounts = scheduledStores.reduce((sum, store) => sum + store.discounts.length, 0);
     const totalPromotions = scheduledStores.reduce((sum, store) => sum + store.promotions.length, 0);
+    const suburbs = Array.from(new Set(scheduledStores.map((store) => store.suburb).filter(Boolean)));
 
     return NextResponse.json({
       message:
         scheduledStores.length > 0
-          ? `Found ${scheduledStores.length} brunch, dining, beverage and cultural bites stores with ${totalDiscounts} current offers and ${totalPromotions} merchant promotions near ${location}`
-          : `No sale or offer stores found near ${location}. To learn or browse the stores near you, use Categories and select Near me.`,
-      location,
+          ? `Found ${scheduledStores.length} brunch, dining, beverage and cultural bites stores with ${totalDiscounts} current offers and ${totalPromotions} merchant promotions within ${MAX_NEARBY_WALKING_KM} km estimated walking distance of ${location || "your location"}`
+          : `No sale or offer stores found near ${location || "your location"}. To learn or browse the stores near you, use Categories and select Near me.`,
+      location: location || "Current location",
       country,
       categories: DINING_CATEGORY_NAMES,
       suburbs,
+      origin: originCoordinates,
       stores: scheduledStores,
       stats: {
         totalStores: scheduledStores.length,

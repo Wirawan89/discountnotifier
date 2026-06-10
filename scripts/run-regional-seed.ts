@@ -16,6 +16,7 @@ const SEED_SCRIPTS: RegionSeedScript[] = [
   { region: "ACT", categoryName: "Dining & Beverages", script: "scripts/seed-canberra-dining-beverages.ts" },
   { region: "NT", categoryName: "Dining & Beverages", script: "scripts/seed-northern-territory-dining-beverages.ts" },
   { region: "NSW", categoryName: "Food & Groceries", script: "scripts/seed-nsw-food-groceries.ts" },
+  { region: "AU", categoryName: "Factory Outlets", script: "scripts/seed-australia-factory-outlets.ts" },
 ];
 
 function argValue(name: string) {

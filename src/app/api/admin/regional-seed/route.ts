@@ -7,8 +7,8 @@ import { requireAdmin } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
-const supportedCategories = new Set(["Dining & Beverages", "Food & Groceries"]);
-const supportedRegions = new Set(["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]);
+const supportedCategories = new Set(["Dining & Beverages", "Food & Groceries", "Factory Outlets"]);
+const supportedRegions = new Set(["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT", "AU"]);
 
 function normalizeCategory(value: unknown) {
   const categoryName = String(value || "").trim();

@@ -28,7 +28,7 @@ export default function CategorySidebar({
   return (
     <aside className="w-full bg-gray-50 shadow-md lg:w-1/3">
       <div className="flex h-full flex-col gap-3 p-3 sm:p-4">
-        <div className="flex flex-row flex-wrap items-start gap-3 lg:flex-col">
+        <div className="flex flex-nowrap items-start gap-3 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
           <NearbyButton
             label="saleNearby"
             active={isSaleNearbyActive}
@@ -60,7 +60,7 @@ export default function CategorySidebar({
                     onSelectCategory(category);
                   }
                 }}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 lg:hidden"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-800 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm lg:hidden"
                 aria-label="Select category"
               >
                 <option value="">Select Category</option>
@@ -104,35 +104,39 @@ type NearbyButtonProps = {
 };
 
 function NearbyButton({ label, description, active, loading, onClick }: NearbyButtonProps) {
-  const colorClass = active ? "bg-red-700 text-white" : "bg-red-600 text-white hover:bg-red-700";
+  const activeClass = active
+    ? "border-red-200/75 bg-red-600/85 text-white shadow-[0_16px_35px_rgba(220,38,38,0.34)] ring-red-200/75"
+    : "border-red-200/70 bg-red-500/78 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_12px_28px_rgba(220,38,38,0.24)] ring-red-100/70 hover:bg-red-600/85";
 
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={loading}
-      className={`group relative h-[50px] w-[150px] shrink-0 overflow-hidden rounded-sm border-2 border-black px-3 py-1.5 text-center shadow-[3px_3px_0_#111] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#111] ${colorClass} ${
+      className={`group relative h-[58px] w-[170px] shrink-0 overflow-hidden rounded-[1.35rem] border px-4 py-2 text-center ring-1 backdrop-blur-2xl transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] ${activeClass} ${
         loading ? "cursor-not-allowed opacity-60" : ""
       }`}
-      style={{ width: "150px", height: "50px" }}
+      style={{ width: "170px", height: "58px" }}
     >
-      <span className="absolute inset-x-1 top-1 h-1 rounded-full bg-white/35"></span>
-      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs leading-none text-yellow-100 animate-pulse">
+      <span className="pointer-events-none absolute inset-x-5 top-1 h-px bg-white/70" />
+      <span className="pointer-events-none absolute -left-8 -top-10 h-20 w-20 rounded-full bg-white/30 blur-2xl transition-transform duration-300 group-hover:translate-x-4" />
+      <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/24 via-transparent to-red-950/18" />
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs leading-none text-yellow-300 drop-shadow animate-pulse">
         ✦
       </span>
-      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs leading-none text-yellow-100 transition-transform duration-200 group-hover:rotate-12">
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs leading-none text-yellow-300 drop-shadow transition-transform duration-200 group-hover:rotate-12">
         ✦
       </span>
       <span className="relative flex h-full items-center justify-center">
         <span className="w-full min-w-0 text-center">
           <span
             className="block text-sm font-black leading-none text-white"
-            style={{ textShadow: "1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000" }}
+            style={{ textShadow: "0 1px 8px rgba(0,0,0,0.38)" }}
           >
             {label}
           </span>
           {description && (
-            <span className="mt-1 block font-bold uppercase leading-tight text-white/95" style={{ fontSize: "8px" }}>
+            <span className="mt-1 block font-bold leading-tight text-white/90" style={{ fontSize: "9px", textShadow: "0 1px 5px rgba(0,0,0,0.3)" }}>
               {description}
             </span>
           )}

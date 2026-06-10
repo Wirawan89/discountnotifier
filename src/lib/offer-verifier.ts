@@ -17,6 +17,9 @@ export type OfferVerifierOptions = {
   profile?: "retail" | "retailShop" | "dining" | "entertainment" | "services" | "travel";
   maxPages?: number;
   requestTimeoutMs?: number;
+  disableCommonOfferUrls?: boolean;
+  disableDiscoveredOfferLinks?: boolean;
+  requireProductDiscountEvidence?: boolean;
 };
 
 type UrlToCheck = {
@@ -68,6 +71,7 @@ const OFFER_KEYWORDS = [
   "special deals",
   "limited time offer",
   "limited time offers",
+  "last season",
   "offer",
   "offers",
   "promo",
@@ -270,7 +274,7 @@ const NON_OFFER_PAGE_PATTERN =
   /(linktr\.ee|darlingharbour\.com\/(?:offers|what'?s-on|whats-on)|sluurpy\.com\/(?:special-)?offers?|chatswoodinterchange\.com\/happy-hour|casuarinasquare\.com\.au\/offers|what[-\s]?we[-\s]?offer|dealer|distributor|find[-\s]?store|store[-\s]?locator|\/(?:pages\/)?stores?(?:[/?#]|$)|store[-\s]?locations?|service[-\s]?center|support|warranty|manual|faq|help[-\s]?centre|help[-\s]?center|ordering|news|press|article|donate|donation|fundraising|terms|conditions|privacy|policy)/i;
 
 const OFFER_LINK_PATTERN =
-  /(discount|sale|clearance|clerance|clearence|deal|hot[-\s]?deal|happy[-\s]?hour|eofy|end[-\s]?of[-\s]?financial[-\s]?year|special|special[-\s]?price|limited[-\s]?time[-\s]?offer|offer|view[-\s]?(?:offer|offers|deal|deals)|promo|promotion|outlet|catalogue|catalog|what'?s[-\s]?on|markdown|marcdown|reduced|save|package|flight\s*\+\s*hotel|buy\s+one\s+get\s+one|bogo|2\s*for\s*1|free[-\s]?night|\$\s*\d+\s*off|\d+%\s*off|(?:1\/2|half)\s*price|off\s+rrp)/i;
+  /(discount|sale|clearance|clerance|clearence|deal|hot[-\s]?deal|happy[-\s]?hour|eofy|end[-\s]?of[-\s]?financial[-\s]?year|special|special[-\s]?price|limited[-\s]?time[-\s]?offer|last[-\s]?season|offer|view[-\s]?(?:offer|offers|deal|deals)|promo|promotion|outlet|catalogue|catalog|what'?s[-\s]?on|markdown|marcdown|reduced|save|package|flight\s*\+\s*hotel|buy\s+one\s+get\s+one|bogo|2\s*for\s*1|free[-\s]?night|\$\s*\d+\s*off|\d+%\s*off|(?:1\/2|half)\s*price|off\s+rrp)/i;
 
 const COMMON_OFFER_PATHS = [
   "/sale",
@@ -312,6 +316,8 @@ const COMMON_OFFER_PATHS = [
   "/pages/deals",
   "/pages/eofy-deals",
   "/shop/sale",
+  "/shop/shoes/last-season",
+  "/shop/apparel/last-season",
 ];
 
 const DINING_OFFER_PATHS = [
@@ -387,6 +393,7 @@ const MAX_DISCOVERY_DEPTH = 3;
 const REQUEST_TIMEOUT_MS = 5000;
 const MIN_RETAIL_SHOP_PERCENT_OFF = 25;
 const AU_LOCAL_RETAIL_HOSTS = new Set([
+  "davidjones.com",
   "incu.com",
   "oroton.com",
   "marcjacobs.com",
@@ -450,7 +457,26 @@ function findKeywords(text: string): string[] {
 }
 
 function findKeywordsInUrl(url: string): string[] {
-  return findKeywords(url.replace(/[-_/?.=&]+/g, " "));
+  const urlText = url.replace(/[-_/?.=&]+/g, " ");
+  const keywords = findKeywords(urlText);
+
+  if (/(?:^|[/-])sales?(?:[/?#-]|$)/i.test(url)) {
+    keywords.push("sale");
+  }
+
+  if (/clearance|clerance|clearence/i.test(url)) {
+    keywords.push("clearance");
+  }
+
+  if (/deals?|hot[-_\s]?deal/i.test(url)) {
+    keywords.push("deal");
+  }
+
+  if (/\d+[-_\s]?off|%25\s*off/i.test(url)) {
+    keywords.push("% off");
+  }
+
+  return Array.from(new Set(keywords));
 }
 
 function hasExplicitSavingsInUrl(url: string): boolean {
@@ -471,6 +497,42 @@ function getPercentOffValues(text: string): number[] {
   return percentages.filter((percentage) => Number.isFinite(percentage));
 }
 
+function parseMoneyValue(value: string): number | null {
+  const normalized = value.replace(/,/g, "");
+  const parsed = Number(normalized);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function hasRetailShopMarkdownPriceEvidence(pageText: string): boolean {
+  const regularSalePattern =
+    /\bregular\s+price\s*(?:aud\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,120}\bsale\s+price\s*(?:aud\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = regularSalePattern.exec(pageText)) !== null) {
+    const regularPrice = parseMoneyValue(match[1]);
+    const salePrice = parseMoneyValue(match[2]);
+
+    if (regularPrice !== null && salePrice !== null && salePrice < regularPrice) {
+      return true;
+    }
+  }
+
+  const wasNowPattern =
+    /\b(?:was|original(?:ly)?|rrp)\s*(?:aud\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,80}\b(?:now|sale)\s*(?:aud\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)/gi;
+
+  while ((match = wasNowPattern.exec(pageText)) !== null) {
+    const regularPrice = parseMoneyValue(match[1]);
+    const salePrice = parseMoneyValue(match[2]);
+
+    if (regularPrice !== null && salePrice !== null && salePrice < regularPrice) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function hasRetailShopExplicitSavings(pageText: string): boolean {
   const hasNonPercentageSavings = OFFER_TEXT_PATTERNS.some(
     ({ label, pattern }) => label !== "% off" && pattern.test(pageText)
@@ -479,7 +541,69 @@ function hasRetailShopExplicitSavings(pageText: string): boolean {
     (percentage) => percentage >= MIN_RETAIL_SHOP_PERCENT_OFF
   );
 
-  return hasNonPercentageSavings || hasMeaningfulPercentOff;
+  return hasNonPercentageSavings || hasMeaningfulPercentOff || hasRetailShopMarkdownPriceEvidence(pageText);
+}
+
+function hasStructuredDiscountedProductEvidence(html: string, pageText: string): boolean {
+  if (hasRetailShopMarkdownPriceEvidence(pageText)) {
+    return true;
+  }
+
+  const normalizedHtml = html.replace(/\s+/g, " ");
+  const priceListPattern =
+    /"priceFrom"\s*:\s*("?[\d,.]+"?)[\s\S]{0,220}?"listPriceFrom"\s*:\s*("?[\d,.]+"?)/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = priceListPattern.exec(normalizedHtml)) !== null) {
+    const price = parseMoneyValue(match[1].replace(/"/g, ""));
+    const listPrice = parseMoneyValue(match[2].replace(/"/g, ""));
+
+    if (price !== null && listPrice !== null && price < listPrice) {
+      return true;
+    }
+  }
+
+  const salePricePattern =
+    /"(?:salePrice|specialPrice|nowPrice|price)"\s*:\s*("?[\d,.]+"?)[\s\S]{0,220}?"(?:wasPrice|listPrice|regularPrice|originalPrice|rrp)"\s*:\s*("?[\d,.]+"?)/gi;
+
+  while ((match = salePricePattern.exec(normalizedHtml)) !== null) {
+    const salePrice = parseMoneyValue(match[1].replace(/"/g, ""));
+    const regularPrice = parseMoneyValue(match[2].replace(/"/g, ""));
+
+    if (salePrice !== null && regularPrice !== null && salePrice < regularPrice) {
+      return true;
+    }
+  }
+
+  const originalFinalPattern =
+    /"original"\s*:\s*"([\d,.]+)"[\s\S]{0,180}?"final"\s*:\s*"([\d,.]+)"/gi;
+
+  while ((match = originalFinalPattern.exec(normalizedHtml)) !== null) {
+    const originalPrice = parseMoneyValue(match[1]);
+    const finalPrice = parseMoneyValue(match[2]);
+
+    if (originalPrice !== null && finalPrice !== null && finalPrice < originalPrice) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isRetailSearchResultUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.toLowerCase();
+    return (
+      /\/search(?:\/|$)/i.test(path) ||
+      parsed.searchParams.has("q") ||
+      parsed.searchParams.has("query") ||
+      parsed.searchParams.has("text") ||
+      parsed.searchParams.has("keyword")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function getSiteKey(url: string): string | null {
@@ -568,6 +692,23 @@ function hasDirectRetailShopSaleIntentInUrl(url: string): boolean {
   return /(?:^|[/-])(?:sale|sales|clearance|clerance|clearence|deals?|outlet|markdown|marcdown|reduced)(?:[/?#-]|$)|(?:woman|man|mens|womens|men|women)[-/]sale|sale[-/](?:woman|man|mens|womens|men|women)/i.test(
     url
   );
+}
+
+function hasTrustedClientRenderedRetailSalePage(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    const host = parsedUrl.hostname.toLowerCase().replace(/^www\./, "");
+    const path = parsedUrl.pathname.toLowerCase().replace(/\/+$/, "");
+
+    return (
+      (host === "drmartens.com.au" && /^\/shop\/sale(?:\/|$)/i.test(path)) ||
+      (host === "davidjones.com" && /^\/shop\/[a-z0-9-]+-sale(?:\/|$)/i.test(path)) ||
+      (host === "skechers.com.au" && /^\/(?:sale|(?:wo)?men\/sale)(?:\/|$)/i.test(path)) ||
+      (host === "yd.com.au" && /^\/au\/sale(?:\/|$)/i.test(path))
+    );
+  } catch {
+    return false;
+  }
 }
 
 function getOfferLinkPriority(url: string, label: string): number {
@@ -659,6 +800,9 @@ function hasDiningOfferEvidence(matchedKeywords: string[], url: string, pageText
 
   const hasHappyHour = matchedKeywords.some((keyword) => /^happy hours?$/i.test(keyword));
   const hasDiningKeyword = matchedKeywords.some((keyword) => DINING_STRONG_OFFER_KEYWORDS.has(keyword));
+  const hasDiningKeywordInPage = findKeywords(pageText).some((keyword) =>
+    DINING_STRONG_OFFER_KEYWORDS.has(keyword)
+  );
   const hasExplicitSavings = OFFER_TEXT_PATTERNS.some(({ pattern }) => pattern.test(pageText));
   const hasOfferIntentUrl =
     /(happy[-\s]?hours?|special[-\s]?offers?|special[-\s]?deals?|deals?|offers?|what'?s[-\s]?on|whatson)/i.test(url);
@@ -679,6 +823,10 @@ function hasDiningOfferEvidence(matchedKeywords: string[], url: string, pageText
   }
 
   if (hasAccommodationOfferUrl) {
+    return false;
+  }
+
+  if (hasOfferIntentUrl && !hasDiningKeywordInPage && !hasExplicitSavings && !hasHappyHour) {
     return false;
   }
 
@@ -797,6 +945,7 @@ function isCountryRelevant(url: string, country?: string, pageText = ""): boolea
         host.endsWith(".com.au") ||
         host.endsWith(".net.au") ||
         host.startsWith("au.") ||
+        (host.endsWith("onitsukatiger.com") && /^\/au(?:\/|$)/i.test(path)) ||
         hasAustralianLocalRetailHost(parsedUrl) ||
         hasAustralianTravelUrl(parsedUrl) ||
         /\b(australia|australian|aud|nsw|vic|qld|wa|sa|tas|act|nt)\b/i.test(text)
@@ -1105,7 +1254,7 @@ export class OfferVerifier {
       queueUrl(normalizedCatalogUrl, 2, "catalog", queuedUrls, urlsToCheck);
     }
 
-    if (normalizedStoreUrl) {
+    if (normalizedStoreUrl && !options.disableCommonOfferUrls) {
       const commonOfferUrls = new Set<string>();
       addCommonOfferUrls(normalizedStoreUrl, commonOfferUrls, options.profile);
       commonOfferUrls.forEach((url) => queueUrl(url, 2, "common", queuedUrls, urlsToCheck));
@@ -1157,7 +1306,9 @@ export class OfferVerifier {
       const matchedKeywords = Array.from(
         new Set([
           ...findKeywords(page.text),
-          ...(current.source === "catalog" || hasTrustedOfferIntentInUrl(current.url)
+          ...(current.source === "catalog" ||
+          hasTrustedOfferIntentInUrl(current.url) ||
+          hasTrustedRetailShopOfferIntentInUrl(current.url)
             ? findKeywordsInUrl(current.url)
             : []),
         ])
@@ -1170,12 +1321,20 @@ export class OfferVerifier {
           current.source === "discovered") &&
         hasTrustedRetailShopOfferIntentInUrl(current.url) &&
         !NON_OFFER_PAGE_PATTERN.test(current.url) &&
-        (matchedKeywords.some((keyword) => RETAIL_SHOP_STRONG_OFFER_KEYWORDS.has(keyword)) ||
-          hasDirectRetailShopSaleIntentInUrl(current.url));
+        (hasRetailShopExplicitSavings(page.text) ||
+          hasRetailShopCatalogueEvidence(current.url, page.text) ||
+          hasTrustedClientRenderedRetailSalePage(current.url));
+      const needsProductDiscountEvidence =
+        options.profile === "retailShop" &&
+        options.requireProductDiscountEvidence &&
+        isRetailSearchResultUrl(current.url);
+      const hasProductDiscountEvidence =
+        !needsProductDiscountEvidence || hasStructuredDiscountedProductEvidence(page.html, page.text);
 
       if (
         matchedKeywords.length > 0 &&
         isCountryRelevant(current.url, options.country, page.text) &&
+        hasProductDiscountEvidence &&
         (hasTrustedRetailShopCatalogPage ||
           hasStrongOfferEvidence(matchedKeywords, current.url, page.text, options.profile))
       ) {
@@ -1188,7 +1347,7 @@ export class OfferVerifier {
         };
       }
 
-      if (current.depth < MAX_DISCOVERY_DEPTH) {
+      if (current.depth < MAX_DISCOVERY_DEPTH && !options.disableDiscoveredOfferLinks) {
         extractOfferLinks(page.html, current.url).forEach((link, linkIndex) =>
           queueUrl(link, current.depth + 1, "discovered", queuedUrls, urlsToCheck, {
             afterIndex: index + linkIndex,

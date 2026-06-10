@@ -2,6 +2,10 @@ import { PrismaClient } from "@prisma/client";
 import { updateCatalogUrlHealth } from "../../src/lib/catalog-health";
 import { getLiveVerifiedOfferEndDate } from "../../src/lib/offer-lifecycle";
 import { OfferVerifier, OfferVerifierOptions } from "../../src/lib/offer-verifier";
+import {
+  validateStoreCandidate,
+  verifierOptionsForStoreCandidate,
+} from "../../src/lib/store-candidate-validator";
 
 const DEFAULT_VERIFY_CONCURRENCY = 4;
 type VerifierProfile = NonNullable<OfferVerifierOptions["profile"]>;
@@ -23,6 +27,8 @@ export type RegionalStoreSeed = {
   locationSource?: string;
   ignoredOfferUrlPatterns?: RegExp[];
   verifierProfileOverride?: VerifierProfile;
+  latitude?: number;
+  longitude?: number;
 };
 
 export type SeedRegionalStoresInput = {
@@ -98,7 +104,21 @@ async function verifyAndSaveStore(
   const sourceType = store.sourceType || options.sourceType || "website";
   const locationSource = store.locationSource || options.locationSource || "suburb";
   const websiteUrl = store.websiteUrl || store.verificationUrl || store.url;
+  const verificationUrl = store.verificationUrl || websiteUrl;
   const verifierProfile = store.verifierProfileOverride || options.verifierProfile;
+  const validation = validateStoreCandidate({
+    name: store.name,
+    url: store.url,
+    websiteUrl,
+    description: store.description,
+    categoryName: options.categoryName,
+    sourceType,
+  });
+
+  if (!validation.ok) {
+    console.log(`skip-candidate: ${store.name} (${validation.reason})`);
+    return { store: 0, offer: 0 };
+  }
 
   const savedStore = await prisma.store.upsert({
     where: { url: store.url },
@@ -115,6 +135,8 @@ async function verifyAndSaveStore(
       sourceType,
       websiteUrl,
       locationSource,
+      latitude: store.latitude,
+      longitude: store.longitude,
       categoryId,
     },
     create: {
@@ -131,6 +153,8 @@ async function verifyAndSaveStore(
       sourceType,
       websiteUrl,
       locationSource,
+      latitude: store.latitude,
+      longitude: store.longitude,
       categoryId,
       ownerId,
     },
@@ -145,11 +169,12 @@ async function verifyAndSaveStore(
     return { store: 1, offer: 0 };
   }
 
-  const result = await OfferVerifier.verifyStoreOfferPages(websiteUrl, store.catalogs || [], {
+  const result = await OfferVerifier.verifyStoreOfferPages(verificationUrl, store.catalogs || [], {
     country,
     profile: verifierProfile,
     maxPages: options.maxPages ?? 5,
     requestTimeoutMs: options.requestTimeoutMs ?? 12000,
+    ...verifierOptionsForStoreCandidate(store.name),
   });
 
   const { removedCatalogUrls } = await updateCatalogUrlHealth(prisma, savedStore.id, store.catalogs || [], result);

@@ -105,13 +105,13 @@ export default function StoreSuggestionFeedback() {
   }
 
   return (
-    <div className="relative">
+    <div className="group relative">
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 shadow-sm ring-1 ring-amber-100 transition hover:scale-105 hover:bg-amber-100 hover:text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500 sm:h-10 sm:w-10"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-white/35 text-amber-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_8px_20px_rgba(245,158,11,0.16)] ring-1 ring-amber-200/40 backdrop-blur-xl transition hover:scale-105 hover:bg-white/55 hover:text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500 sm:h-10 sm:w-10"
         aria-label="Suggest a favorite shop"
-        title="Can't find your favorite shop?? Tell us !"
+        aria-describedby="store-suggestion-help"
       >
         <svg
           className="h-[18px] w-[18px] sm:h-5 sm:w-5"
@@ -127,10 +127,17 @@ export default function StoreSuggestionFeedback() {
             d="M8.5 18.5 4 20l1.2-4.1A7.5 7.5 0 1 1 8.5 18.5Z"
           />
         </svg>
-        <span className="pointer-events-none absolute right-0 top-11 z-50 hidden w-56 rounded-md border border-gray-200 bg-white px-3 py-2 text-left text-xs font-medium leading-5 text-gray-800 shadow-lg group-hover:block sm:top-12">
-          Can&apos;t find your favorite shop?? Tell us !
-        </span>
       </button>
+      <span
+        id="store-suggestion-help"
+        role="tooltip"
+        className="pointer-events-none fixed bottom-20 left-1/2 z-[90] flex w-[min(16rem,calc(100vw-2rem))] -translate-x-1/2 items-start gap-2 rounded-[22px] rounded-br-md border border-emerald-200 bg-emerald-100 px-3 py-2 text-left text-[11px] font-medium leading-snug text-gray-900 opacity-0 shadow-lg transition-opacity duration-150 before:absolute before:-bottom-1.5 before:left-1/2 before:h-4 before:w-4 before:-translate-x-1/2 before:rotate-45 before:border-b before:border-r before:border-emerald-200 before:bg-emerald-100 group-hover:opacity-100 group-focus-within:opacity-100 group-active:opacity-100 sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-12 sm:w-64 sm:translate-x-0 sm:before:-top-1.5 sm:before:bottom-auto sm:before:left-auto sm:before:right-3 sm:before:translate-x-0 sm:before:border-b-0 sm:before:border-r-0 sm:before:border-l sm:before:border-t"
+      >
+        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-300 text-[11px] leading-none text-emerald-950">
+          💬
+        </span>
+        <span>Can&apos;t find your favorite store? Click here.</span>
+      </span>
 
       {isOpen && (
         <div

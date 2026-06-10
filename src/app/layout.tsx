@@ -47,7 +47,7 @@ export default function RootLayout({
                       <span className="hidden sm:inline">Sign-in (Business)</span>
                     </a>
                     <div className="hidden items-center gap-3 sm:flex">
-                      <HeaderQuickSearch />
+                      <HeaderQuickSearch ariaLabel="Quick search stores from header" globalOpenMode="desktop" />
                       <StoreSuggestionFeedback />
                       <HeaderHelp />
                       <NotificationBell />
